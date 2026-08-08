@@ -4,9 +4,9 @@ import ipaddress
 
 from typing import Optional
 
-from .logger import Logger
-from .process_information_checker import ProcessInformationChecker
-from .source_code_information_registry import SourceCodeChecker
+from src.logger import Logger
+from src.process_information_checker import ProcessInformationChecker
+from src.source_code_information_registry import SourceCodeChecker
 
 class JDBCommunicator:
     logger = Logger.get_logger("JDBCommunicator")
