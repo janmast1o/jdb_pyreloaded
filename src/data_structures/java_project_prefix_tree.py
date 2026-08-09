@@ -5,6 +5,7 @@ from enum import Enum
 
 from ..utils.util_functions import find_longest_common_prefix_of_two_words
 
+# TODO: Decide if `Node` classes should be moved outside the class for clarity
 class JavaProjectPrefixTree:
 
     class NodeType(Enum):
