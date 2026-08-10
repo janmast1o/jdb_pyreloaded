@@ -1,9 +1,10 @@
 # import contextlib
+import pexpect
 import sys
 import threading
 
 from abc import ABC as AbstractClass, abstractmethod
-from subprocess import Popen
+# from subprocess import Popen
 from typing import Union, Optional
 from prompt_toolkit import PromptSession
 from prompt_toolkit.input import Input
@@ -26,7 +27,7 @@ class ShellProcessWrapper(AbstractClass):
                  exit_keyword: str = "exit", 
                  stdout = sys.stdout, stderr = sys.stderr, 
                  input_for_wrapping_session: Optional[Input] = None):
-        self._wrapped_process: Popen = None
+        self._wrapped_process: pexpect.spawn = None
         self._wrapping_session: PromptSession = None
         self._wrapping_session_options: WrappingSessionOptions = wrapping_session_options
         self._run_in_main_thread: bool = run_in_main_thread

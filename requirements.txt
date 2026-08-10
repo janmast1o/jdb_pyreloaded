@@ -1,2 +1,3 @@
 typing_extensions
 prompt_toolkit
+pexpect

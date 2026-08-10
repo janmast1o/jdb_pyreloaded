@@ -1,3 +1,4 @@
+import pexpect
 import sys
 
 from prompt_toolkit.completion import Completer, Completion
@@ -54,32 +55,50 @@ class PythonConsoleWrapper(ShellProcessWrapper):
 
     @override
     def _execute_command_in_wrapped_process(self, command) -> None:
-        print("A")
-        self._wrapped_process.stdin.write(command)
-        print("B")
-        self._wrapped_process.stdin.flush()
+        # print("A")
+        # self._wrapped_process.stdin.write(command)
+        # print("B")
+        # self._wrapped_process.stdin.flush()
+        # print("C")
 
-        while True:
-            # Non-None returncode means the process has concluded
-            if self._wrapped_process.returncode is not None:
-                break
-            line: str = self._wrapped_process.stdout.readline()
-            print(f"Line: {line}")
-            if line.strip() == ">>>":
-                break
-            print(line)
+        # bufsize = 1024
+        # while True:
+        #     # Non-None returncode means the process has concluded
+        #     if self._wrapped_process.returncode is not None:
+        #         break
+        #     # line: str = self._wrapped_process.stdout.readline()
+        #     output_block = self._wrapped_process.stdout.read(bufsize)
+        #     # print(f"Line: {output_block}")
+        #     # if line.strip() == ">>>":
+        #     if len(output_block) < bufsize:
+        #         break
+        #     print(output_block, end="")
+
+        # self._wrapped_process.sendline(command)
+        outcome_index = self._wrapped_process.expect([">>> ", pexpect.TIMEOUT, pexpect.EOF])
+        # while True:
+            # bufsize = 1024
+            # read_output = self._wrapped_process.read()
+            # print(read_output, end='')
+            # if len(read_output) < bufsize:
+                # break
+
+        print(self._wrapped_process.before)
+        print()    
 
     @override
     def _start_wrapped_process(self) -> None:
-        self._wrapped_process = Popen(
-            ["python"],
-            stdin=PIPE, stdout=PIPE, stderr=PIPE, 
-            text=True, bufsize=True
-        )   
+        self._wrapped_process = pexpect.spawn("python")
+        # self._wrapped_process = Popen(
+        #     ["python"],
+        #     stdin=PIPE, stdout=PIPE, stderr=PIPE, 
+        #     text=True, bufsize=True
+        # )   
 
     @override
     def _handle_wrapped_process_shutdown(self) -> None:
-        wrapped_process_returncode = self._wrapped_process.returncode
-        assert wrapped_process_returncode is not None
-        print(f"Wrapped process has terminated with returncode: {wrapped_process_returncode}")  
-        
+        self._wrapped_process.close()
+        print(f"Wrapped process has terminated with returncode: {self._wrapped_process.exitstatus}")  
+        # wrapped_process_returncode = self._wrapped_process.returncode
+        # assert wrapped_process_returncode is not None
+        # print(f"Wrapped process has terminated with returncode: {wrapped_process_returncode}")  
