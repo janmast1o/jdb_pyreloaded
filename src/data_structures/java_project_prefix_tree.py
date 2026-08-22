@@ -29,6 +29,10 @@ class JavaProjectPrefixTree:
             # Conclusion: auth and net are subpackages in the project
             self._children_nodes_map: Dict[str, Tuple[str, "JavaProjectPrefixTree.Node"]] = {}
 
+        @override
+        def __eq__(self, other_object) -> bool:
+            return self is other_object
+
         @abstractmethod
         def get_type_enum_value(self) -> "JavaProjectPrefixTree.NodeType":
             pass
@@ -136,7 +140,7 @@ class JavaProjectPrefixTree:
                 if b_node_type == JavaProjectPrefixTree.NodeType.PACKAGE_PART and b_node.dot_terminated:
                     b_node.dot_terminated = False
                     b_node.add_empty_package_part_child()
-                return b_node.add_new_child(suffix, node_type, kwargs)
+                return b_node.add_new_child(suffix, node_type, **kwargs)
 
             # This part of the code should never be reached
             assert False     
