@@ -1,14 +1,15 @@
-# import contextlib
 import pexpect
 import sys
 import threading
 
 from abc import ABC as AbstractClass, abstractmethod
-# from subprocess import Popen
-from typing import Union, Optional
+from typing import Union, Optional, Dict, Any
 from prompt_toolkit import PromptSession
 from prompt_toolkit.input import Input
 from prompt_toolkit.completion import Completer, Completion
+
+from src.utils.signal_utils import BooleanValueFlippedInSignalHandlerException
+from src.utils.util_objects import BooleanWrapper
 
 class WrappingSessionOptions:
     def __init__(self, line_begin_marker: str,
@@ -38,6 +39,7 @@ class ShellProcessWrapper(AbstractClass):
         self._input_for_wrapping_session = input_for_wrapping_session
         self._thread: Optional[threading.Thread] = None
 
+        # self._keep_running: BooleanWrapper = BooleanWrapper.create_empty()
         if start_immediately:
             self._start()
 
@@ -69,7 +71,11 @@ class ShellProcessWrapper(AbstractClass):
         pass
 
     @abstractmethod
-    def _execute_command_in_wrapped_process(self, command) -> None:
+    def _execute_command_in_wrapped_process(self, command: str) -> None:
+        pass
+
+    @abstractmethod
+    def _get_wrapped_process_start_kwargs(self) -> Dict[str, Any]:
         pass
 
     @abstractmethod
@@ -100,7 +106,9 @@ class ShellProcessWrapper(AbstractClass):
             self._start_wrapped_process()
             self._start_wrapping_session()
 
+            # self._keep_running.value = True
             keep_running = True
+            # TODO: Add silencing the error from the wrapping session
             while keep_running:
                 try:
                     command: str = self._wrapping_session.prompt(line_begin_marker)
@@ -111,8 +119,8 @@ class ShellProcessWrapper(AbstractClass):
 
                     normalized_command = self._normalize_command_and_try_change_command_execution_logic(command)
                     self._execute_command_in_wrapped_process(normalized_command)
-                except KeyboardInterrupt:
-                    continue
+                except BooleanValueFlippedInSignalHandlerException:
+                    break
                 except EOFError:
                     break
 

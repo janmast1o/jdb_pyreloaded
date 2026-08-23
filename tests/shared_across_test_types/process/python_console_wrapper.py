@@ -1,13 +1,13 @@
-import pexpect
 import sys
 
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.input import Input
 from subprocess import Popen, PIPE
-from typing import Optional
+from typing import Optional, Dict, Any, List
 from typing_extensions import override
 
 from src.process.shell_process_wrapper import ShellProcessWrapper, WrappingSessionOptions
+from src.process.single_threaded_shell_process_wrapper import SingleThreadedShellProcessWrapper
 
 class SelectedPythonKeywordsCompleter(Completer):
     PYTHON_KEYWORD_SELECTION = [
@@ -24,7 +24,7 @@ class SelectedPythonKeywordsCompleter(Completer):
                     yield Completion(word, start_position=0)
 
 
-class PythonConsoleWrapper(ShellProcessWrapper):
+class PythonConsoleWrapper(SingleThreadedShellProcessWrapper):
     def __init__(self, wrapping_session_options: WrappingSessionOptions, 
                  run_in_main_thread: bool = True, 
                  start_immediately: bool = True, 
@@ -53,47 +53,55 @@ class PythonConsoleWrapper(ShellProcessWrapper):
     def _normalize_command_and_try_change_command_execution_logic(self, command) -> str:
         return command
 
+    # @override
+    # def _execute_command_in_wrapped_process(self, command) -> None:
+    #     # print("A")
+    #     # self._wrapped_process.stdin.write(command)
+    #     # print("B")
+    #     # self._wrapped_process.stdin.flush()
+    #     # print("C")
+
+    #     # bufsize = 1024
+    #     # while True:
+    #     #     # Non-None returncode means the process has concluded
+    #     #     if self._wrapped_process.returncode is not None:
+    #     #         break
+    #     #     # line: str = self._wrapped_process.stdout.readline()
+    #     #     output_block = self._wrapped_process.stdout.read(bufsize)
+    #     #     # print(f"Line: {output_block}")
+    #     #     # if line.strip() == ">>>":
+    #     #     if len(output_block) < bufsize:
+    #     #         break
+    #     #     print(output_block, end="")
+
+    #     # self._wrapped_process.sendline(command)
+    #     outcome_index = self._wrapped_process.expect([">>> ", pexpect.TIMEOUT, pexpect.EOF])
+    #     # while True:
+    #         # bufsize = 1024
+    #         # read_output = self._wrapped_process.read()
+    #         # print(read_output, end='')
+    #         # if len(read_output) < bufsize:
+    #             # break
+
+    #     print(self._wrapped_process.before)
+    #     print()    
+
+    # @override
+    # def _start_wrapped_process(self) -> None:
+    #     self._wrapped_process = pexpect.spawn("python")
+    #     # self._wrapped_process = Popen(
+    #     #     ["python"],
+    #     #     stdin=PIPE, stdout=PIPE, stderr=PIPE, 
+    #     #     text=True, bufsize=True
+    #     # )   
+
     @override
-    def _execute_command_in_wrapped_process(self, command) -> None:
-        # print("A")
-        # self._wrapped_process.stdin.write(command)
-        # print("B")
-        # self._wrapped_process.stdin.flush()
-        # print("C")
-
-        # bufsize = 1024
-        # while True:
-        #     # Non-None returncode means the process has concluded
-        #     if self._wrapped_process.returncode is not None:
-        #         break
-        #     # line: str = self._wrapped_process.stdout.readline()
-        #     output_block = self._wrapped_process.stdout.read(bufsize)
-        #     # print(f"Line: {output_block}")
-        #     # if line.strip() == ">>>":
-        #     if len(output_block) < bufsize:
-        #         break
-        #     print(output_block, end="")
-
-        # self._wrapped_process.sendline(command)
-        outcome_index = self._wrapped_process.expect([">>> ", pexpect.TIMEOUT, pexpect.EOF])
-        # while True:
-            # bufsize = 1024
-            # read_output = self._wrapped_process.read()
-            # print(read_output, end='')
-            # if len(read_output) < bufsize:
-                # break
-
-        print(self._wrapped_process.before)
-        print()    
+    def _get_wrapped_process_start_kwargs(self) -> Dict[str, Any]:
+        return {"command" : "python", "encoding" : "utf-8"}
 
     @override
-    def _start_wrapped_process(self) -> None:
-        self._wrapped_process = pexpect.spawn("python")
-        # self._wrapped_process = Popen(
-        #     ["python"],
-        #     stdin=PIPE, stdout=PIPE, stderr=PIPE, 
-        #     text=True, bufsize=True
-        # )   
+    def _get_wrapped_process_expect_options(self) -> List[str]:
+        return [">>>"]
 
     @override
     def _handle_wrapped_process_shutdown(self) -> None:
