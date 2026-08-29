@@ -6,6 +6,7 @@ from typing_extensions import override
 
 from src.process.shell_process_wrapper import *
 from src.io.single_threaded_wrapped_process_stdout_sink import SingleThreadedWrappedProcessStdoutSink
+from src.io.special_line_processor import SpecialLineProcessor
 
 class SingleThreadedShellProcessWrapper(ShellProcessWrapper):
     def __init__(self, wrapping_session_options: WrappingSessionOptions, 
@@ -24,10 +25,18 @@ class SingleThreadedShellProcessWrapper(ShellProcessWrapper):
 
     @abstractmethod
     def _get_wrapped_process_expect_options(self) -> List[str]:
-        pass     
+        pass
+
+    @abstractmethod
+    def _create_special_line_processor(self) -> SpecialLineProcessor:
+        pass
+
+    def _notify_wrapped_process_sink_of_last_command(self, command: str) -> None:
+        self._wrapped_process.logfile_read.line_to_ignore_next_occurrence_of = command     
 
     @override
     def _execute_command_in_wrapped_process(self, command: str) -> None:
+        self._notify_wrapped_process_sink_of_last_command(command)
         self._wrapped_process.sendline(command.strip())  
         self._wrapped_process.expect(self._wrapped_process_expect_full_list)
         print()
@@ -37,7 +46,10 @@ class SingleThreadedShellProcessWrapper(ShellProcessWrapper):
         wrapped_process_start_kwargs = self._get_wrapped_process_start_kwargs()
         self._wrapped_process = pexpect.spawn(**wrapped_process_start_kwargs)
         self._wrapped_process.logfile = None
-        self._wrapped_process.logfile_read = SingleThreadedWrappedProcessStdoutSink(self._stdout)
+        self._wrapped_process.logfile_read = SingleThreadedWrappedProcessStdoutSink(
+            special_line_processor=self._create_special_line_processor(),
+            io_sink=self._stdout
+        )
         self._wrapped_process.logfile_send = None
         self._wrapped_process.expect(self._wrapped_process_expect_full_list)
         print()
