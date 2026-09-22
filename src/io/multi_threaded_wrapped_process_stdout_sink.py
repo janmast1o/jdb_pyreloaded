@@ -99,12 +99,8 @@ class MultiThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
             with self._prompt_method_exited_cv:
                 # Wait for `prompt` method call to exit and only then proceed
                 signal.raise_signal(signal.SIGUSR1)
-                print("Entering cv waiting block")
                 while not self._prompt_method_exited_cv_notify_triggered_in_current_wait:
-                    print("Started waiting")
                     self._prompt_method_exited_cv.wait()
-                    print("Woke up")
-                print("Proceeding")    
 
             self._awaiting_post_prompt_method_cv_notify.set_value(False)    
 
