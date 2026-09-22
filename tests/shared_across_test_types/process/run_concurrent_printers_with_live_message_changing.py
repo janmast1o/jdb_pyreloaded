@@ -30,7 +30,7 @@ if __name__=="__main__":
     printers_runner = ConcurrentPrintersRunner(
         number_of_printers=args.number_of_printers,
         printing_frequency_range=(5, 9),
-        start_immdiately=True
+        start_immediately=True
     )
 
     while True:

@@ -1,9 +1,12 @@
 import argparse
 import signal
+import sys
+import termios
+import tty
 
-from src.process.shell_process_wrapper import WrappingSessionOptions
-from src.utils.signal_utils import FlipBooleanValueAfterReceivingSignal
-from src.utils.util_objects import BooleanWrapper
+from src.process.abstract_shell_process_wrapper import WrappingSessionOptions
+from src.utils.custom_exceptions import ShellProcessWrapperInterruptException
+from src.utils.signal_utils import RaiseExceptionAfterReceivingSignal
 from tests.shared_across_test_types.process.python_console_wrapper import PythonConsoleWrapper
 
 
@@ -26,9 +29,17 @@ if __name__ == "__main__":
 
     signal.signal(
         signal.SIGINT, 
-        FlipBooleanValueAfterReceivingSignal(BooleanWrapper(True), raise_error=True).get_handler()
+        RaiseExceptionAfterReceivingSignal(error_type_to_raise=ShellProcessWrapperInterruptException).get_handler()
     )
 
-    python_console_wrapper = PythonConsoleWrapper(
-        wrapping_session_options, start_immediately=True, exit_keyword="exit"
-    )
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+
+    try:
+        tty.setcbreak(fd)
+
+        python_console_wrapper = PythonConsoleWrapper(
+            wrapping_session_options, start_immediately=True, exit_keyword="exit"
+        )
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)

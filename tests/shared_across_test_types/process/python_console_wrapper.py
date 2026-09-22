@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, List
 from typing_extensions import override
 
 from src.io.special_line_processor import SpecialLineProcessor
-from src.process.shell_process_wrapper import WrappingSessionOptions
+from src.process.abstract_shell_process_wrapper import WrappingSessionOptions
 from src.process.single_threaded_shell_process_wrapper import SingleThreadedShellProcessWrapper
 from src.utils.util_objects import SimpleString
 
@@ -17,6 +17,7 @@ class SelectedPythonKeywordsCompleter(Completer):
         "True", "False", "None"
     ]
 
+    @override
     def get_completions(self, document, unimportant_complete_event):
         word = document.get_word_before_cursor()
         if len(document.text_after_cursor) == 0 or document.text_after_cursor[0].isspace():
@@ -51,7 +52,7 @@ class PythonConsoleWrapper(SingleThreadedShellProcessWrapper):
         return "exit()"
 
     @override
-    def _normalize_command_and_try_change_command_execution_logic(self, command) -> str:
+    def _normalize_command_and_try_change_command_execution_logic(self, command) -> Optional[str]:
         return command
 
     @override
@@ -69,8 +70,3 @@ class PythonConsoleWrapper(SingleThreadedShellProcessWrapper):
             line_processing_function=lambda unused_index, unused_line: None, 
             automatically_strip_lines=True
         )
-
-    @override
-    def _handle_wrapped_process_shutdown(self) -> None:
-        self._wrapped_process.close()
-        print(f"Wrapped process has terminated with returncode: {self._wrapped_process.exitstatus}")  

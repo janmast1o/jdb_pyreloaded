@@ -4,11 +4,12 @@ import sys
 from typing import List
 from typing_extensions import override
 
-from src.process.shell_process_wrapper import *
+from src.process.abstract_shell_process_wrapper import *
 from src.io.single_threaded_wrapped_process_stdout_sink import SingleThreadedWrappedProcessStdoutSink
 from src.io.special_line_processor import SpecialLineProcessor
 
-class SingleThreadedShellProcessWrapper(ShellProcessWrapper):
+
+class SingleThreadedShellProcessWrapper(AbstractShellProcessWrapper):
     def __init__(self, wrapping_session_options: WrappingSessionOptions, 
                  run_in_main_thread: bool = True, 
                  start_immediately: bool = True, 
@@ -26,13 +27,6 @@ class SingleThreadedShellProcessWrapper(ShellProcessWrapper):
     @abstractmethod
     def _get_wrapped_process_expect_options(self) -> List[str]:
         pass
-
-    @abstractmethod
-    def _create_special_line_processor(self) -> SpecialLineProcessor:
-        pass
-
-    def _notify_wrapped_process_sink_of_last_command(self, command: str) -> None:
-        self._wrapped_process.logfile_read.line_to_ignore_next_occurrence_of = command     
 
     @override
     def _execute_command_in_wrapped_process(self, command: str) -> None:

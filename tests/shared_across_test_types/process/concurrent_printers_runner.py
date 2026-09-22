@@ -8,13 +8,13 @@ from typing import List, Tuple
 class ConcurrentPrintersRunner:
     def __init__(self, number_of_printers: int, 
                  printing_frequency_range: Tuple[int, int],
-                 start_immdiately: bool = False):
+                 start_immediately: bool = False):
         self.printer_messages: List[str] = []
         self._number_of_printers: int = number_of_printers
         self._printing_frequency_range: Tuple[int, int] = printing_frequency_range
         self._printer_threads: List[threading.Thread] = []
         self._keep_printers_active: bool = False
-        if start_immdiately:
+        if start_immediately:
             self.start()
 
     def _printer_function(self, printer_index: int) -> None:
@@ -24,7 +24,7 @@ class ConcurrentPrintersRunner:
 
     def start(self) -> None:
         if len(self._printer_threads) != 0:
-            raise Exception("Cocurrent printers runner already activated")
+            raise Exception("Concurrent printers runner already activated")
         self._keep_printers_active = True
         for i in range(self._number_of_printers):
             self.printer_messages.append(f"Printer says 'Hello!'")
