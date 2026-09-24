@@ -1,2 +1,6 @@
 .vscode/
 .python-version
+.venv/
+venv/
+**/__pycache__/
+notes/
