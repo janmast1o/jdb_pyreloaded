@@ -6,7 +6,7 @@ from src.data_structures.java_project_prefix_tree import *
 class JavaProjectPrefixTreeNodesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.parent_node = JavaProjectPrefixTree.PackagePartNode("something", None, True)
+        cls.parent_node: JavaProjectPrefixTree.PackagePartNode = JavaProjectPrefixTree.PackagePartNode("something", None, True)
         return super().setUpClass()
     
     def setUp(self):

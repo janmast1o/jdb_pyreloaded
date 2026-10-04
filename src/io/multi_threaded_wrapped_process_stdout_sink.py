@@ -3,14 +3,16 @@ import signal
 import sys
 import threading
 
-from typing import Optional
+from typing import Optional, List
 from typing_extensions import override
 
+from src.io.abstract_wrapped_process_output_interceptor import AbstractWrappedProcessOutputInterceptor
 from src.io.abstract_wrapped_process_stdout_sink import AbstractWrappedProcessStdoutSink
 from src.io.special_line_processor import SpecialLineProcessor
 from src.utils.custom_exceptions import ShellProcessWrapperInterruptException
 from src.utils.signal_utils import RaiseExceptionAfterReceivingSignal
 from src.utils.util_objects import BooleanWrapper
+
 
 # NOTE: This class is not thread-safe. In this instance 'multi-threaded' refers
 # to the fact that the wrapped process is multi-threaded, `write()` and `flush()`
@@ -20,8 +22,9 @@ class MultiThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
                  can_display_wrapping_process_prompt: BooleanWrapper,
                  wrapping_process_prompt_displayed: BooleanWrapper, 
                  ignore_command_from_prompt: BooleanWrapper,
+                 optional_output_interceptor: Optional[AbstractWrappedProcessOutputInterceptor] = None,
                  io_sink: io.TextIOWrapper = sys.stdout):
-        super().__init__(special_line_processor, io_sink)
+        super().__init__(special_line_processor, optional_output_interceptor, io_sink)
         self._can_display_wrapping_process_prompt: BooleanWrapper = can_display_wrapping_process_prompt
         self._wrapping_process_prompt_displayed: BooleanWrapper = wrapping_process_prompt_displayed
         self._ignore_command_from_prompt: BooleanWrapper = ignore_command_from_prompt
@@ -68,8 +71,11 @@ class MultiThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
             self.line_to_ignore_next_occurrence_of = None
             return
 
+        if self._optional_output_interceptor is not None:
+            s = self._optional_output_interceptor.intercept_on_write(s)
+
         separate_lines = s.splitlines(keepends=True)
-        processed_lines = []
+        processed_lines: List[str] = []
         for line in separate_lines:
             i = self._special_line_processor.maybe_get_matching_special_line_index(line)
             if i is None:

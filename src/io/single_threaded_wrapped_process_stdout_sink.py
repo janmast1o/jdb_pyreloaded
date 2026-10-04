@@ -1,9 +1,10 @@
 import io
 import sys
-import traceback
 
+from typing import Optional, List
 from typing_extensions import override
 
+from src.io.abstract_wrapped_process_output_interceptor import AbstractWrappedProcessOutputInterceptor
 from src.io.abstract_wrapped_process_stdout_sink import AbstractWrappedProcessStdoutSink
 from src.io.special_line_processor import SpecialLineProcessor
 
@@ -13,8 +14,9 @@ from src.io.special_line_processor import SpecialLineProcessor
 # to those of a TextIOWrapper object
 class SingleThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
     def __init__(self, special_line_processor: SpecialLineProcessor,
+                 optional_output_interceptor: Optional[AbstractWrappedProcessOutputInterceptor] = None,
                  io_sink: io.TextIOWrapper = sys.stdout):
-        super().__init__(special_line_processor, io_sink)
+        super().__init__(special_line_processor, optional_output_interceptor, io_sink)
 
     @override
     def write(self, s: str) -> None:
@@ -27,8 +29,11 @@ class SingleThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
             self.line_to_ignore_next_occurrence_of = None
             return
 
+        if self._optional_output_interceptor is not None:
+            s = self._optional_output_interceptor.intercept_on_write(s)
+
         separate_lines = s.splitlines(keepends=True)
-        processed_lines = []
+        processed_lines: List[str] = []
         for line in separate_lines:
             i = self._special_line_processor.maybe_get_matching_special_line_index(line)
             if i is None:
