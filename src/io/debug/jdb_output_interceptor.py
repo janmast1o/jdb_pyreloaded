@@ -23,6 +23,8 @@ from src.process.debug.breakpoints import BaseBreakpoint, ConditionalBreakpoint,
 # that options `[go|thread]` and `[<thread_id>]` are either very unreliable or just 
 # flat out don't work. For that reason I will not accommodate them in this project (at least for the time being).
 
+# TODO: Optimize `line.strip(">").strip()` - not very high priority since
+# this should not be a costly operation overall.
 class JDBOutputInterceptor(AbstractWrappedDebuggerOutputInterceptor):
     BREAKPOINT_MESSAGE_KINDS_TO_THROTTLE = (
         BreakpointRelatedMessageKind.BREAKPOINTS_LISTED_HEADER |
@@ -34,9 +36,11 @@ class JDBOutputInterceptor(AbstractWrappedDebuggerOutputInterceptor):
         self._breakpoint_manager: BreakpointManager = breakpoint_manager
         super().__init__(wrapped_debugger_command_execute_function)
 
-    def _find_code_address_in_line(line: str, message_kind: BreakpointRelatedMessageKind) -> Optional[str]:
+    def _find_code_address_in_line(self, line: str, message_kind: BreakpointRelatedMessageKind) -> Optional[str]:
         code_address: Optional[str] = None
         line_parts = line.lstrip(">").strip().split()
+        # print(f"Line: {line}")
+        # print(f"Line chars: {list(line)}")
 
         if message_kind == BreakpointRelatedMessageKind.DEFERRING_BREAKPOINT:
             # After 'Deferring' and 'breakpoint'
@@ -52,12 +56,17 @@ class JDBOutputInterceptor(AbstractWrappedDebuggerOutputInterceptor):
             code_address = None
         elif message_kind == BreakpointRelatedMessageKind.BREAKPOINT_HIT:
             # After 'Breakpoint', 'hit:' and 'thread=<thread_name>'
-            code_address = line_parts[3]
+            first_possible_code_address = line_parts[3].rstrip(",")
+            # After 'Breakpoint', 'hit:' and 'thread=<thread_name>' with the method name removed and line number added
+            second_possible_code_address = ".".join(line_parts[3].rstrip(",").split(".")[:-1]) + ":" + line_parts[4].split("=")[-1]
+            code_address = f"{first_possible_code_address}|{second_possible_code_address}"
         elif message_kind == BreakpointRelatedMessageKind.ENTRY_IN_BREAKPOINT_LIST:
             # Last in the breakpoint entry line
             code_address = line_parts[-1]    
 
-        return code_address    
+        if code_address is not None:
+            code_address = code_address.rstrip(".,;")
+        return code_address
 
     # TODO: If this code is too slow consider replacing regex with something faster
     @override
@@ -66,7 +75,7 @@ class JDBOutputInterceptor(AbstractWrappedDebuggerOutputInterceptor):
         line = line.lstrip(">").strip()
         if line.startswith("Deferring breakpoint"):
             return BreakpointRelatedMessageKind.DEFERRING_BREAKPOINT
-        elif re.match(r"Set (deferred)? breakpoint .+", line):
+        elif re.match(r"Set( deferred)? breakpoint .+", line):
             return BreakpointRelatedMessageKind.BREAKPOINT_SET
         elif line.startswith("Removed: breakpoint"):
             return BreakpointRelatedMessageKind.BREAKPOINT_REMOVED
@@ -79,17 +88,47 @@ class JDBOutputInterceptor(AbstractWrappedDebuggerOutputInterceptor):
 
     @override
     def _handle_breakpoint_related_message(self, matched_kind: BreakpointRelatedMessageKind, line: str) -> Optional[str]:
+        # print(f"Matched kind: {matched_kind}, line: {line}")
         if (matched_kind & JDBOutputInterceptor.BREAKPOINT_MESSAGE_KINDS_TO_THROTTLE) != 0:
             return None
         
         code_address = self._find_code_address_in_line(line, matched_kind)
-        breakpoint_kind = self._breakpoint_manager.get_condition_type_for_code_address(code_address)
+        # TODO: Refactor this to be more universal
+        if matched_kind == BreakpointRelatedMessageKind.BREAKPOINT_HIT:
+            first_possible_code_address, second_possible_code_address = code_address.split("|")
+            breakpoint_kind = self._breakpoint_manager.get_condition_type_for_code_address(first_possible_code_address)
+            code_address = first_possible_code_address
+            if breakpoint_kind is None:
+                breakpoint_kind = self._breakpoint_manager.get_condition_type_for_code_address(second_possible_code_address)
+                code_address = second_possible_code_address
+        else:
+            breakpoint_kind = self._breakpoint_manager.get_condition_type_for_code_address(code_address)        
+
+        print(f"Line: {line}, CA: {code_address}, BK: {breakpoint_kind}")
+        terminated_with_newline = False
+        if line.endswith("\n"):
+            terminated_with_newline = True
+
+        line = line.lstrip(">").strip().rstrip(".")
         # If the breakpoint is conditional we need to trigger the condition check in 
-        if breakpoint_kind == BreakpointKind.CONDITIONAL:
+        if matched_kind == BreakpointRelatedMessageKind.BREAKPOINT_HIT and breakpoint_kind == BreakpointKind.CONDITIONAL:
             associated_breakpoint_condition = self._breakpoint_manager.get_condition_for_code_address(code_address)
             # Do not wait here to determine if should halt the execution.
             # Let's keep the program stopped and only resume it after we get the output from
             # condition check.
             self._awaiting_breakpoint_condition_check_line_begin = associated_breakpoint_condition
             self._wrapped_debugger_command_execute_function(f"print {associated_breakpoint_condition}")
+            line = "Conditional " + line + ", will assess whether to stop."
+        elif matched_kind == BreakpointRelatedMessageKind.BREAKPOINT_HIT:
+            line = "Regular " + line
+        else:
+            line = line + " in the wrapped jdb process itself."         
+
+        if terminated_with_newline:
+            line = line + "\n"
+        return line
+
+    @override
+    def _get_resume_execution_command(self) -> str:
+        return "cont"
         

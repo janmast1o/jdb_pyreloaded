@@ -11,6 +11,7 @@ from src.utils.util_objects import BooleanWrapper
 
 class MultiThreadedShellProcessWrapper(AbstractShellProcessWrapper):
     def __init__(self, wrapping_session_options: WrappingSessionOptions,
+                 ignore_wrapped_process_input_line: bool = True,
                  run_in_main_thread: bool = True,
                  start_immediately: bool = True,
                  exit_keyword: str = "exit",
@@ -35,6 +36,7 @@ class MultiThreadedShellProcessWrapper(AbstractShellProcessWrapper):
         self._prompt_method_exited_cv: threading.Condition = threading.Condition()
         super().__init__(
             wrapping_session_options,
+            ignore_wrapped_process_input_line,
             run_in_main_thread, start_immediately,
             exit_keyword, stdout, stderr, input_for_wrapping_session
         )
@@ -55,6 +57,9 @@ class MultiThreadedShellProcessWrapper(AbstractShellProcessWrapper):
                         # the child process as in this multithreaded mode this can
                         # be considered normal behavior
                         pass
+                    except Exception as e:
+                        # print(f"Got unexpected exception: {str(e)}, will resume anyway")
+                        continue
                     if wrapped_process.delayafterread is not None:
                         time.sleep(wrapped_process.delayafterread) 
             except KeyboardInterrupt:
@@ -71,7 +76,6 @@ class MultiThreadedShellProcessWrapper(AbstractShellProcessWrapper):
 
     @override
     def _execute_command_in_wrapped_process(self, command: str) -> None:
-        print(f"Command: {command}")
         if self._ignore_command_from_prompt:
             return
         self._notify_wrapped_process_sink_of_last_command(command)
@@ -83,11 +87,13 @@ class MultiThreadedShellProcessWrapper(AbstractShellProcessWrapper):
         self._wrapped_process = pexpect.spawn(**wrapped_process_start_kwargs)
         self._wrapped_process.logfile = None
         self._wrapped_process_sink = MultiThreadedWrappedProcessStdoutSink(
-            special_line_processor=self._create_special_line_processor(),
+            input_line_match_pattern=self._create_input_line_match_pattern(),
+            ignore_input_line=self._ignore_wrapped_process_input_line,
             can_display_wrapping_process_prompt=self._can_display_wrapping_process_prompt,
             wrapping_process_prompt_displayed=self._wrapping_process_prompt_displayed,
             ignore_command_from_prompt=self._ignore_command_from_prompt,
-            io_sink=self._stdout
+            io_sink=self._stdout,
+            optional_output_interceptor=self._create_output_interceptor()
         )
         self._wrapped_process.logfile_read = self._wrapped_process_sink
         self._wrapped_process.logfile_send = None

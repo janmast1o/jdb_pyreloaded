@@ -59,6 +59,16 @@ class BreakpointManager:
         self._regular_breakpoints_id_map: Dict[int, str] = {}
         self._conditional_breakpoints_id_map: Dict[int, str] = {}
 
+    def get_code_address_for_regular_breakpoint_from_id(self, breakpoint_id: int) -> str:
+        if breakpoint_id not in self._regular_breakpoints_id_map:
+            raise Exception(f"No regular breakpoint with id={breakpoint_id}")
+        return self._regular_breakpoints_id_map[breakpoint_id]
+
+    def get_code_address_for_conditional_breakpoint_from_id(self, breakpoint_id: int) -> str:
+        if breakpoint_id not in self._conditional_breakpoints_id_map:
+            raise Exception(f"No conditional breakpoint with id={breakpoint_id}")
+        return self._conditional_breakpoints_id_map[breakpoint_id]
+
     def add_regular_breakpoint(self, code_address: str) -> None:  
         if code_address in self._regular_breakpoints_code_address_map:
             raise Exception(f"Regular breakpoint at: {code_address} already defined")
@@ -115,7 +125,7 @@ class BreakpointManager:
         if code_address not in self._conditional_breakpoints_code_address_map:
             raise Exception(f"No conditional breakpoint corresponding to {code_address}")
         else:
-            return self._conditional_breakpoints_code_address_map[code_address].condition
+            return self._conditional_breakpoints_code_address_map[code_address][1].condition
 
     @overload
     def remove_regular_breakpoint(self, breakpoint_number: int) -> None: 
@@ -181,13 +191,13 @@ class BreakpointManager:
             lines.append("{" + f"id={parse_to_string_and_pad_to_digits(id, digits=2)}, code_address={code_address}" + "}")
 
         lines.append(" ")
-        lines.append("Conditional breakpoints")
+        lines.append("Conditional breakpoints:")
 
         sorted_conditional_breakpoint_ids = sorted([id for id in self._conditional_breakpoints_id_map.keys()])
 
         for id in sorted_conditional_breakpoint_ids:
             code_address = self._conditional_breakpoints_id_map[id]
-            condition = self._conditional_breakpoints_code_address_map[id][1].condition
+            condition = self._conditional_breakpoints_code_address_map[code_address][1].condition
             lines.append(
                 "{" + f"id={parse_to_string_and_pad_to_digits(id, digits=2)}, code_address={code_address}" 
                 + "\n " + f"condition=({condition})" + "}"

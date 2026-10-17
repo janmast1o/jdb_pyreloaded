@@ -9,6 +9,7 @@ from typing_extensions import override
 from src.io.special_line_processor import SpecialLineProcessor
 from src.process.abstract_shell_process_wrapper import WrappingSessionOptions
 from src.process.multi_threaded_shell_process_wrapper import MultiThreadedShellProcessWrapper
+from src.utils.util_objects import BaseString, SimpleString
 
 class ConcurrentPrintersWrapperCompleter(Completer):
     @override
@@ -23,6 +24,7 @@ class ConcurrentPrintersWrapperCompleter(Completer):
 
 class ConcurrentPrintersWithLiveMessageChangingWrapper(MultiThreadedShellProcessWrapper):                
     def __init__(self, wrapping_session_options: WrappingSessionOptions,
+                 ignore_wrapped_process_input_line: bool = True,
                  run_in_main_thread: bool = True,
                  start_immediately: bool = True, 
                  exit_keyword: str = "exit",
@@ -31,26 +33,28 @@ class ConcurrentPrintersWithLiveMessageChangingWrapper(MultiThreadedShellProcess
                  number_of_printers: int = 4):
         self._number_of_printers: int = number_of_printers
         super().__init__(
-            wrapping_session_options, run_in_main_thread,
+            wrapping_session_options, 
+            ignore_wrapped_process_input_line,
+            run_in_main_thread,
             start_immediately, exit_keyword,
             stdout, stderr, input_for_wrapping_session
         )
-
-    @override
-    def _get_introduction_message(self) -> str:
-        return f"Welcome to concurrent printers test run wrapper. Type '{self._exit_keyword}' to quit"
 
     @override
     def _create_completer(self) -> Completer:
         return ConcurrentPrintersWrapperCompleter()
 
     @override
+    def _get_introduction_message(self) -> str:
+        return f"Welcome to concurrent printers test run wrapper. Type '{self._exit_keyword}' to quit"
+
+    @override
     def _get_exit_keyword_for_wrapped_process(self) -> str:
         return "exit"
 
     @override
-    def _normalize_command_and_try_change_command_execution_logic(self, command: str) -> Optional[str]:
-        return command.replace("'", '"')
+    def _preprocess_command(self, command: str) -> Optional[str]:
+        return super()._preprocess_command(command.replace("'", '"'))
 
     @override
     def _get_wrapped_process_start_kwargs(self) -> Dict[str, Any]:
@@ -66,9 +70,5 @@ class ConcurrentPrintersWithLiveMessageChangingWrapper(MultiThreadedShellProcess
         }
 
     @override
-    def _create_special_line_processor(self):
-        return SpecialLineProcessor(
-            lines_to_process_specially=[],
-            line_processing_function=lambda unused_index, unused_line: None,
-            automatically_strip_lines=True
-        )
+    def _create_input_line_match_pattern(self) -> BaseString:
+        return SimpleString("")

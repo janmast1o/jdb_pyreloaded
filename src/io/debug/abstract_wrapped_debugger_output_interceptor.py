@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from enum import Enum
 from typing import List, Optional, Callable
 from typing_extensions import override
 
@@ -29,17 +28,19 @@ class AbstractWrappedDebuggerOutputInterceptor(AbstractWrappedProcessOutputInter
         pass
 
     @override
-    def _filter_and_handle_intercepted_output(self, s: str) -> str:
-        separate_lines = s.splitlines(keepends=True)   
+    def _filter_and_handle_intercepted_output_lines(self, s_lines: List[str]) -> List[str]:
+        # separate_lines = s.splitlines(keepends=True)
         filtered_lines: List[str] = []
         breakpoint_related_message_kind: Optional[BreakpointRelatedMessageKind] = None
         commands_to_send_to_wrapped_debugger: List[str] = []
 
-        for line in separate_lines:         
-            if (breakpoint_related_message_kind := self._try_get_breakpoint_related_message_kind_match(line)) is not None:
+        for line in s_lines:
+            # Handling empty lines (probably a better way to do this, but I don't have an idea where right now)
+            if len(line.strip()) == 0 or line.strip() == ">": 
+                line = None
+            elif (breakpoint_related_message_kind := self._try_get_breakpoint_related_message_kind_match(line)) is not None:
                 line = self._handle_breakpoint_related_message(breakpoint_related_message_kind, line)
-
-            if self._awaiting_breakpoint_condition_check_line_begin is not None and line.startswith(self._awaiting_breakpoint_condition_check_line_begin):
+            elif self._awaiting_breakpoint_condition_check_line_begin is not None and line.strip().startswith(self._awaiting_breakpoint_condition_check_line_begin):
                 condition_check_result_as_str = line.split()[-1]
                 condition_check_result: bool = None
                 if condition_check_result_as_str == "true":
@@ -58,9 +59,10 @@ class AbstractWrappedDebuggerOutputInterceptor(AbstractWrappedProcessOutputInter
                 if not condition_check_result: # Condition check evaluated as false
                     commands_to_send_to_wrapped_debugger.append(self._get_resume_execution_command())
 
-
             if line is not None:    
                 filtered_lines.append(line)
 
         for command in commands_to_send_to_wrapped_debugger:
             self._wrapped_debugger_command_execute_function(command)
+
+        return filtered_lines  

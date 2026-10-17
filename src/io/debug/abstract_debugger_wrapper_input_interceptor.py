@@ -22,6 +22,6 @@ class AbstractDebuggerWrapperInputInterceptor(AbstractWrappingProcessInputInterc
     @override
     def intercept_on_input_send(self, command: str) -> Optional[str]:
         if (breakpoint_related_command_type := self._try_get_breakpoint_related_command_type_match(command)) is not None:
-            command = self._try_get_breakpoint_related_command_type_match(breakpoint_related_command_type, command)
+            command = self._handle_breakpoint_related_command(breakpoint_related_command_type, command)
 
-        return command    
+        return command

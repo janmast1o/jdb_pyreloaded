@@ -10,6 +10,8 @@ from src.utils.util_objects import BaseString
 #
 # `lines_to_process_specially` must be a list of `BaseString` (a class implemented in this project)
 # as the comparison will differ whether a sequence is considered to be regular expression or not.
+#
+# TODO: Consider removing this, as input interceptor already does something similar
 class SpecialLineProcessor:
     def __init__(self, lines_to_process_specially: List[BaseString], 
                  line_processing_function: Callable[[int, str], str],

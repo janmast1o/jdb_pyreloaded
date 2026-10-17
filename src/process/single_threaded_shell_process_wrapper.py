@@ -11,6 +11,7 @@ from src.io.special_line_processor import SpecialLineProcessor
 
 class SingleThreadedShellProcessWrapper(AbstractShellProcessWrapper):
     def __init__(self, wrapping_session_options: WrappingSessionOptions, 
+                 ignore_wrapped_process_input_line: bool = True,
                  run_in_main_thread: bool = True, 
                  start_immediately: bool = True, 
                  exit_keyword: str = "exit", 
@@ -20,6 +21,7 @@ class SingleThreadedShellProcessWrapper(AbstractShellProcessWrapper):
         self._wrapped_process_expect_full_list = self._get_wrapped_process_expect_options() + [pexpect.EOF, pexpect.TIMEOUT]
         super().__init__(
             wrapping_session_options, 
+            ignore_wrapped_process_input_line,
             run_in_main_thread, start_immediately, 
             exit_keyword, stdout, stderr, input_for_wrapping_session    
         )    
@@ -41,8 +43,10 @@ class SingleThreadedShellProcessWrapper(AbstractShellProcessWrapper):
         self._wrapped_process = pexpect.spawn(**wrapped_process_start_kwargs)
         self._wrapped_process.logfile = None
         self._wrapped_process.logfile_read = SingleThreadedWrappedProcessStdoutSink(
-            special_line_processor=self._create_special_line_processor(),
-            io_sink=self._stdout
+            input_line_match_pattern=self._create_input_line_match_pattern(),
+            ignore_input_line=self._ignore_wrapped_process_input_line,
+            io_sink=self._stdout,
+            optional_output_interceptor=self._create_output_interceptor()
         )
         self._wrapped_process.logfile_send = None
         self._wrapped_process.expect(self._wrapped_process_expect_full_list)

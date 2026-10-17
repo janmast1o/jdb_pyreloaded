@@ -1,9 +1,9 @@
-from enum import Enum
+from enum import IntEnum
 
 
 # These values were chosen to allow for quickly comparing against subsets of enum values
 # Output
-class BreakpointRelatedMessageKind(Enum):
+class BreakpointRelatedMessageKind(IntEnum):
     DEFERRING_BREAKPOINT = 1 << 1
     BREAKPOINT_SET = 1 << 2
     BREAKPOINT_REMOVED = 1 << 3
@@ -13,7 +13,7 @@ class BreakpointRelatedMessageKind(Enum):
 
 
 # Input
-class BreakpointRelatedCommandKind(Enum):
+class BreakpointRelatedCommandKind(IntEnum):
     SET_REGULAR_BREAKPOINT = 1 << 1
     SET_CONDITIONAL_BREAKPOINT = 1 << 2
     REMOVE_REGULAR_BREAKPOINT = 1 << 3
