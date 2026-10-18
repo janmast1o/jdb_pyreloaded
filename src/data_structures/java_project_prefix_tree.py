@@ -193,29 +193,23 @@ class JavaProjectPrefixTree:
         # word_index, letter_index = 0, 0
         node = self.root
 
-        # while word_index <= last_word_index:
         for word_index in range(0, last_word_index+1):
             word = word_parts[word_index]
-            # candidate_word, candidate_node = node._children_nodes_map.get(word[letter_index], ("", None))
             candidate_word, candidate_node = node._children_nodes_map.get(word[0], ("", None))
-            # word_suffix = word[letter_index:]
-            word_suffix = word
 
             if candidate_node is None:
                 new_node: JavaProjectPrefixTree.Node = None
                 if word_index < last_word_index:
-                    new_node = node.add_new_child(word_suffix, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
+                    new_node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
                 else:
-                    new_node = node.add_new_child(word_suffix, JavaProjectPrefixTree.NodeType.FILE_PART)
+                    new_node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.FILE_PART)
 
                 node = new_node
-                # word_index += 1
-                # letter_index += 1
                 continue
 
-            longest_common_prefix = find_longest_common_prefix_of_two_words(candidate_word, word_suffix)
+            longest_common_prefix = find_longest_common_prefix_of_two_words(candidate_word, word)
             is_current_word_index_last = (word_index == last_word_index)
-            if longest_common_prefix == word_suffix:
+            if longest_common_prefix == word:
                 # If the longest common prefix is equal to both `word_suffix` and `candidate_word`
                 # then we only need to maybe add dot termination (if we are inserting a package word)
                 if longest_common_prefix == candidate_word:
@@ -226,58 +220,14 @@ class JavaProjectPrefixTree:
                     # Since nodes can handle splitting on their own, and this would be 
                     # case (B) in `Node.add_new_child` logic we can just use that method.
                     if is_current_word_index_last:
-                        node = node.add_new_child(word_suffix, JavaProjectPrefixTree.NodeType.FILE_PART)
+                        node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.FILE_PART)
                     else:
-                        node = node.add_new_child(word_suffix, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
-                # Move onto the next word.
-                # word_index += 1
-                # letter_index = 0    
-            # else: # ie. `len(longest_common_prefix) < len(word_suffix)`
-            #     # We need to move to the candidate node, pushing down the dot-termination to
-            #     # a child node if candidate node is a dot-terminated package part node.
-            #     if longest_common_prefix == candidate_word:
-            #         node = candidate_node
-            #         if candidate_node.get_type_enum_value() == JavaProjectPrefixTree.NodeType.PACKAGE_PART and candidate_node.dot_terminated:
-            #             candidate_node.add_empty_package_part_child()
-            #         letter_index += len(longest_common_prefix)    
-            #     else:        
-            #         # Since nodes can handle splitting on their own, and this would be 
-            #         # case (A) in `Node.add_new_child` logic we can just use that method.
-            #         if is_current_word_index_last:
-            #             node = node.add_new_child(word_suffix, JavaProjectPrefixTree.NodeType.FILE_PART)
-            #         else:
-            #             node = node.add_new_child(word_suffix, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=False)
-            #         word_index += 1
-            #         letter_index += 1 
+                        node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
             else: # This will be either case (A) or case (C)
                 if is_current_word_index_last:
-                    node = node.add_new_child(word_suffix, JavaProjectPrefixTree.NodeType.FILE_PART)
+                    node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.FILE_PART)
                 else:
-                    node = node.add_new_child(word_suffix, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True) 
-
-            # word_index += 1          
-
-            # if longest_common_prefix == candidate_word:
-            #     if (longest_common_prefix == word[letter_index:] and word_index != last_word_index and
-            #         not candidate_node.dot_terminated):
-                    
-            #         candidate_node.add_empty_package_part_child()
-            #         word_index += 1
-            #         letter_index = 0
-            #     else:
-            #         letter_index += len(longest_common_prefix)
-            #     node = candidate_node    
-            # else:
-            #     if word_index == last_word_index:
-            #         node_type = JavaProjectPrefixTree.NodeType.FILE_PART
-            #         new_node = node.add_new_child(word[letter_index:], node_type)        
-            #     else:
-            #         node_type = JavaProjectPrefixTree.NodeType.PACKAGE_PART   
-            #         new_node = node.add_new_child(word[letter_index:], node_type, dot_terminated=True)
-
-            #     node = new_node
-            #     word_index += 1
-            #     letter_index = 0
+                    node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True) 
 
     def find_node_containing_prefix(self, word: str) -> "JavaProjectPrefixTree.Node":
         word_parts = word.split(sep=".")
