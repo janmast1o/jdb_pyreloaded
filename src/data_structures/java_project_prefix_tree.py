@@ -1,9 +1,25 @@
 from abc import ABC as AbstractClass, abstractmethod
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, List
 from typing_extensions import override
 from enum import Enum
 
 from src.utils.util_functions import find_longest_common_prefix_of_two_words
+
+
+DEFAULT_EMPTY_MARKER = "<empty>"
+
+
+def add_subtree_rooted_at_node_to_array_representation(node: "JavaProjectPrefixTree.Node",
+                                                       destination_array: List[Tuple[int, "JavaProjectPrefixTree.Node"]], 
+                                                       depth=0) -> None:
+    destination_array.append((depth, node))
+    child_edges = [l for l in node._children_nodes_map.keys()]
+    child_edges.sort(key=lambda x: 0 if x == DEFAULT_EMPTY_MARKER else ord(x.lower()))
+
+    for l in child_edges:
+        child_node = node._children_nodes_map[l][1]
+        add_subtree_rooted_at_node_to_array_representation(child_node, destination_array, depth+1)
+
 
 # TODO: Add node/word removal support. 
 # TODO: Decide if `Node` classes should be moved outside the class for clarity
@@ -15,7 +31,7 @@ class JavaProjectPrefixTree:
 
 
     class Node(AbstractClass):
-        EMPTY_KEY_MARKER = "<empty>"
+        EMPTY_KEY_MARKER = DEFAULT_EMPTY_MARKER
         
         def __init__(self, word: str, parent_node: Optional["JavaProjectPrefixTree.Node"]):
             self.word: str = word
@@ -75,6 +91,8 @@ class JavaProjectPrefixTree:
                 child_node = self._children_nodes_map[c][1]
                 if child_node.get_type_enum_value() != node_type:
                     raise Exception("Node preexists, but is not of the same type")
+                else:
+                    return child_node
 
             longest_common_prefix = find_longest_common_prefix_of_two_words(preexisting_child_word, new_child_word)
             n = len(longest_common_prefix)
@@ -168,6 +186,17 @@ class JavaProjectPrefixTree:
                 return self
             return self.add_empty_package_part_child()
 
+        def __str__(self):
+            parent_word: Optional[str] = "None"
+            if self.parent_node is not None:
+                parent_word = self.parent_node.word
+                parent_word = parent_word if len(parent_word) > 0 else "<empty>"
+            word = self.word if len(self.word) > 0 else "<empty>"
+            return f"PPN: word={word}, parent={parent_word}, dot_terminated={self.dot_terminated}"
+
+        def __repr__(self):
+            return self.__str__()
+
 
     class FilePartNode(Node):
         def __init__(self, word: str, parent_node: Optional["JavaProjectPrefixTree.Node"]):
@@ -181,6 +210,17 @@ class JavaProjectPrefixTree:
         def maybe_self_dot_terminate(self) -> "JavaProjectPrefixTree.PackagePartNode":
             raise Exception("Cannot self dot-terminate on a file part node")
 
+        def __str__(self):
+            parent_word: Optional[str] = "None"
+            if self.parent_node is not None:
+                parent_word = self.parent_node.word
+                parent_word = parent_word if len(parent_word) > 0 else "<empty>"
+            word = self.word if len(self.word) > 0 else "<empty>"
+            return f"FPN: word={word}, parent={parent_word}"
+
+        def __repr__(self):
+            return self.__str__()
+
 
     def __init__(self):
         self.root: "JavaProjectPrefixTree.PackagePartNode" = JavaProjectPrefixTree.PackagePartNode("", None, False)
@@ -190,41 +230,41 @@ class JavaProjectPrefixTree:
         if word_parts[-1] == "":
             word_parts.pop(-1)  
         last_word_index = len(word_parts) - 1
-        # word_index, letter_index = 0, 0
         node = self.root
 
         for word_index in range(0, last_word_index+1):
             word = word_parts[word_index]
             candidate_word, candidate_node = node._children_nodes_map.get(word[0], ("", None))
+            # Based on an assumption that the file names start with upper case.
+            is_current_word_file_part = (word_index == last_word_index) and (word[0] == word[0].upper())
 
             if candidate_node is None:
                 new_node: JavaProjectPrefixTree.Node = None
-                if word_index < last_word_index:
-                    new_node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
-                else:
+                if is_current_word_file_part:
                     new_node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.FILE_PART)
+                else:
+                    new_node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
 
                 node = new_node
                 continue
 
             longest_common_prefix = find_longest_common_prefix_of_two_words(candidate_word, word)
-            is_current_word_index_last = (word_index == last_word_index)
             if longest_common_prefix == word:
                 # If the longest common prefix is equal to both `word_suffix` and `candidate_word`
                 # then we only need to maybe add dot termination (if we are inserting a package word)
                 if longest_common_prefix == candidate_word:
                     node = candidate_node
-                    if not is_current_word_index_last:
+                    if not is_current_word_file_part:
                         node = candidate_node.maybe_self_dot_terminate()
                 else:
                     # Since nodes can handle splitting on their own, and this would be 
                     # case (B) in `Node.add_new_child` logic we can just use that method.
-                    if is_current_word_index_last:
+                    if is_current_word_file_part:
                         node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.FILE_PART)
                     else:
                         node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
             else: # This will be either case (A) or case (C)
-                if is_current_word_index_last:
+                if is_current_word_file_part:
                     node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.FILE_PART)
                 else:
                     node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True) 
@@ -265,6 +305,11 @@ class JavaProjectPrefixTree:
                     node = node._children_nodes_map[JavaProjectPrefixTree.Node.EMPTY_KEY_MARKER][1]
 
         return node
+
+    def get_list_representation(self) -> List[Tuple[int, "JavaProjectPrefixTree.Node"]]:
+        destination_array: List[Tuple[int, JavaProjectPrefixTree.Node]] = []
+        add_subtree_rooted_at_node_to_array_representation(self.root, destination_array, 0)
+        return destination_array
 
     def clear_tree(self) -> None:
         self.root._children_nodes_map.clear()
