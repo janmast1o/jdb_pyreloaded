@@ -3,25 +3,31 @@ import signal
 import sys
 import threading
 
-from typing import Optional
+from typing import Optional, List
 from typing_extensions import override
 
+from src.io.abstract_wrapped_process_output_interceptor import AbstractWrappedProcessOutputInterceptor
 from src.io.abstract_wrapped_process_stdout_sink import AbstractWrappedProcessStdoutSink
-from src.io.special_line_processor import SpecialLineProcessor
 from src.utils.custom_exceptions import ShellProcessWrapperInterruptException
 from src.utils.signal_utils import RaiseExceptionAfterReceivingSignal
-from src.utils.util_objects import BooleanWrapper
+from src.utils.util_objects import BooleanWrapper, BaseString
+
+
+MOVE_UP_ONE_LINE_AND_ERASE_LINE = "\033[1A\033[2K"
+
 
 # NOTE: This class is not thread-safe. In this instance 'multi-threaded' refers
 # to the fact that the wrapped process is multi-threaded, `write()` and `flush()`
 # methods are still meant to be called from a singular thread.
 class MultiThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
-    def __init__(self, special_line_processor: SpecialLineProcessor, 
+    def __init__(self, input_line_match_pattern: BaseString, 
+                 ignore_input_line: bool,
                  can_display_wrapping_process_prompt: BooleanWrapper,
                  wrapping_process_prompt_displayed: BooleanWrapper, 
                  ignore_command_from_prompt: BooleanWrapper,
+                 optional_output_interceptor: Optional[AbstractWrappedProcessOutputInterceptor] = None,
                  io_sink: io.TextIOWrapper = sys.stdout):
-        super().__init__(special_line_processor, io_sink)
+        super().__init__(input_line_match_pattern, ignore_input_line, optional_output_interceptor, io_sink)
         self._can_display_wrapping_process_prompt: BooleanWrapper = can_display_wrapping_process_prompt
         self._wrapping_process_prompt_displayed: BooleanWrapper = wrapping_process_prompt_displayed
         self._ignore_command_from_prompt: BooleanWrapper = ignore_command_from_prompt
@@ -29,21 +35,20 @@ class MultiThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
         self._prompt_method_exited_cv: threading.Condition = threading.Condition()
         self._prompt_method_exited_cv_notify_triggered_in_current_wait: bool = False
         self._any_text_written_to_io_sink: bool = False
+        self._contents_to_write_to_io: Optional[str] = None
 
         # Registering `SIGUSR1` handler to trigger `PromptSession.prompt()` exit.
         # TODO: Consider if there is a place in code which will make it seem more elegant.
         old_sigusr1_handler = signal.signal(
             signal.SIGUSR1, 
-            RaiseExceptionAfterReceivingSignal(error_type_to_raise=ShellProcessWrapperInterruptException).get_handler()
+            RaiseExceptionAfterReceivingSignal(
+                error_type_to_raise=ShellProcessWrapperInterruptException,
+                print_on_handler_enter=False,
+            ).get_handler()
         )
         # Check if `SIGUSR1` has already been overriden somewhere else in the code
         if old_sigusr1_handler != signal.Handlers.SIG_DFL:
             raise Exception(f"Handler for signal {signal.SIGUSR1.name} has already been overriden in this process")
-
-        # self._terminal_input_consumer: Optional[TerminalInputConsumer] = None
-        # if self._stdin_source is sys.stdin:
-        #     self._terminal_input_consumer = TerminalInputConsumer()
-        #     self._terminal_input_consumer.put_terminal_in_cbreak_mode_if_unix()
 
     def is_flush_awaiting_prompt_method_cv_notify(self) -> bool:
         return self._awaiting_post_prompt_method_cv_notify.get_value()
@@ -52,6 +57,11 @@ class MultiThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
         with self._prompt_method_exited_cv:
             self._prompt_method_exited_cv.notify()
         self._prompt_method_exited_cv_notify_triggered_in_current_wait = True
+
+    def _write_deferred_contents_to_io_sink(self) -> None:
+        if self._contents_to_write_to_io is not None:
+            self.io_sink.write(self._contents_to_write_to_io)
+        self._contents_to_write_to_io = None    
 
     def _erase_prompt_line_from_terminal(self) -> None:
         print("\n", end="")
@@ -68,27 +78,30 @@ class MultiThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
             self.line_to_ignore_next_occurrence_of = None
             return
 
-        separate_lines = s.splitlines(keepends=True)
-        processed_lines = []
-        for line in separate_lines:
-            i = self._special_line_processor.maybe_get_matching_special_line_index(line)
-            if i is None:
-                processed_lines.append(line)
+        s_lines = self._split_text_into_lines(s)
+        s_lines = self._maybe_add_last_call_trailing_unfinished_line(s_lines)
+        # Might look clearer without De Morgan's law applied:
+        # (not an input line) and (doesn't end with newline)
+        last_is_an_input_line = self._is_input_line(s_lines[-1])
+        if not (last_is_an_input_line or s_lines[-1].endswith("\n")):
+            self._last_write_call_trailing_unfinished_line = s_lines.pop(-1)
+        elif last_is_an_input_line:
+            if self._ignore_input_line:
+                s_lines.pop(-1)
             else:
-                processed_special_line = self._special_line_processor.apply_to_line_of_type(i, line)
-                if processed_special_line is not None:
-                    line_terminated_with_newline = len(line) > 0 and line[-1] == "\n"
-                    processed_lines.append(processed_special_line + "\n" if line_terminated_with_newline else "")
+                s_lines[-1] = s_lines[-1] + "\n"
 
-        if len(processed_lines) == 0:
-            return 
+        if self._optional_output_interceptor is not None:
+            s_lines = self._optional_output_interceptor.intercept_on_write(s_lines)        
 
-        self.io_sink.write("".join(processed_lines))   
+        # We need to defer the write to `io_sink`
+        self._contents_to_write_to_io = "".join(s_lines)
         self._any_text_written_to_io_sink = True
 
     @override
     def flush(self) -> None: 
         if not self._any_text_written_to_io_sink:
+            self._write_deferred_contents_to_io_sink()
             super().flush()
         elif self._wrapping_process_prompt_displayed:
             self._can_display_wrapping_process_prompt.set_value(False)
@@ -102,25 +115,16 @@ class MultiThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
                 while not self._prompt_method_exited_cv_notify_triggered_in_current_wait:
                     self._prompt_method_exited_cv.wait()
 
-            self._awaiting_post_prompt_method_cv_notify.set_value(False)    
-
-            # if self._terminal_input_consumer is not None:
-            #     written_to_terminal = self._terminal_input_consumer.empty_terminal_buffer_and_return_result()
-            #     print("Written to terminal: ", written_to_terminal)
-            
-            # self._wrapping_process_prompt_displayed.value = False
-            self._erase_prompt_line_from_terminal()
-
-            # if self._terminal_input_consumer is not None:
-                # written_to_terminal = self._terminal_input_consumer.empty_terminal_buffer_and_return_result()
-                # print("Written to terminal: ", written_to_terminal)
-
+            self._awaiting_post_prompt_method_cv_notify.set_value(False)
+            # TODO: Consider if it wouldn't be more convenient to keep
+            # the input line we were forced out of. 
+            self.io_sink.write(MOVE_UP_ONE_LINE_AND_ERASE_LINE)
+            self._write_deferred_contents_to_io_sink()
             super().flush()
             self._ignore_command_from_prompt.set_value(False)
             self._can_display_wrapping_process_prompt.set_value(True)
         else:
+            self._write_deferred_contents_to_io_sink()
             super().flush()
 
         self._any_text_written_to_io_sink = False        
-
-

@@ -39,7 +39,8 @@ if __name__ == "__main__":
         tty.setcbreak(fd)
 
         python_console_wrapper = PythonConsoleWrapper(
-            wrapping_session_options, start_immediately=True, exit_keyword="exit"
+            wrapping_session_options=wrapping_session_options, 
+            start_immediately=True, exit_keyword="exit"
         )
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)

@@ -78,4 +78,3 @@ class Regex(BaseString):
     @override
     def is_regex(self) -> bool:
         return True
-      

@@ -2,14 +2,18 @@ import pexpect
 import sys
 import threading
 
-from abc import ABC as AbstractClass, abstractmethod
+from abc import abstractmethod
 from typing import Union, Optional, Dict, Any
+from typing_extensions import override
 from prompt_toolkit import PromptSession
 from prompt_toolkit.input import Input
 from prompt_toolkit.completion import Completer
 
-from src.io.special_line_processor import SpecialLineProcessor
-from src.utils.custom_exceptions import ShellProcessWrapperInterruptException
+from src.io.abstract_wrapping_process_input_interceptor import AbstractWrappingProcessInputInterceptor
+from src.io.abstract_wrapped_process_output_interceptor import AbstractWrappedProcessOutputInterceptor
+from src.process.internal_use_interceptors_and_completer_creator import InternalUseInterceptorsAndCompleterCreator
+from src.utils.util_objects import BaseString
+from src.utils.custom_exceptions import ShellProcessWrapperInterruptException, CommandMalformedException
 
 class WrappingSessionOptions:
     def __init__(self, line_begin_marker: str,
@@ -21,8 +25,9 @@ class WrappingSessionOptions:
         
 # If wrapping process is meant to use `sys.stdin` as input
 # set `input_for_wrapping_session` to `None`
-class AbstractShellProcessWrapper(AbstractClass):
+class AbstractShellProcessWrapper(InternalUseInterceptorsAndCompleterCreator):
     def __init__(self, wrapping_session_options: WrappingSessionOptions, 
+                 ignore_wrapped_process_input_line: bool = True,
                  run_in_main_thread: bool = True, 
                  start_immediately: bool = True, 
                  exit_keyword: str = "exit", 
@@ -31,14 +36,15 @@ class AbstractShellProcessWrapper(AbstractClass):
         self._wrapped_process: pexpect.spawn = None
         self._wrapping_session: PromptSession = None
         self._wrapping_session_options: WrappingSessionOptions = wrapping_session_options
+        self._ignore_wrapped_process_input_line: bool = ignore_wrapped_process_input_line
         self._run_in_main_thread: bool = run_in_main_thread
-
         self._exit_keyword = exit_keyword
         self._stdout = stdout
         self._stderr = stderr
         self._input_for_wrapping_session = input_for_wrapping_session
         self._thread: Optional[threading.Thread] = None
         self._keep_running = False
+        self._optional_input_interceptor: AbstractWrappingProcessInputInterceptor = self._create_input_interceptor()
 
         # self._keep_running: BooleanWrapper = BooleanWrapper.create_empty()
         if start_immediately:
@@ -55,31 +61,26 @@ class AbstractShellProcessWrapper(AbstractClass):
     def _get_introduction_message(self) -> str:
         pass
 
-    # Completer creation is tied to how the wrapped process works,
-    # hence it's marked as abstract and has to be implemented in 
-    # inheriting class
-    @abstractmethod
-    def _create_completer(self) -> Completer:
-        pass
+    # # Completer creation is tied to how the wrapped process works,
+    # # hence it's marked as abstract and has to be implemented in 
+    # # inheriting class
+    # @override
+    # def _create_completer(self) -> Completer:
+    #     pass
 
     @abstractmethod
     def _get_exit_keyword_for_wrapped_process(self) -> str:
         pass
 
     @abstractmethod
-    def _create_special_line_processor(self) -> SpecialLineProcessor:
+    def _create_input_line_match_pattern(self) -> BaseString:
         pass
 
-    # Can be used to modify the behavior of execution logic, for example:
-    # add a conditional breakpoint. Can also be used to inspect the information about the 
-    # wrapping process (ie. the process where the object resides), 
-    # and not the wrapped process (ie. `self._wrapped_session`).  
-    # Returns normalized command, suitable to be sent to the wrapped process.
-    # If `None` is returned, the command will not be sent to the wrapped process
-    # (useful for the above mentioned inspecting information about the wrapping process).
-    @abstractmethod
-    def _normalize_command_and_try_change_command_execution_logic(self, command: str) -> Optional[str]:
-        pass
+    def _preprocess_command(self, command: str) -> Optional[str]:
+        if self._optional_input_interceptor is None:
+            return command
+        else:
+            return self._optional_input_interceptor.intercept_on_input_send(command)
 
     @abstractmethod
     def _execute_command_in_wrapped_process(self, command: str) -> None:
@@ -92,6 +93,16 @@ class AbstractShellProcessWrapper(AbstractClass):
     @abstractmethod
     def _start_wrapped_process(self) -> None:
         pass
+
+    # Returns `None` by default. It could make sense reimplementing this in inheriting classes.
+    @override
+    def _create_input_interceptor(self) -> Optional[AbstractWrappingProcessInputInterceptor]:
+        return None
+
+    # Returns `None` by default. It could make sense reimplementing this in inheriting classes..
+    @override
+    def _create_output_interceptor(self) -> Optional[AbstractWrappedProcessOutputInterceptor]:
+        return None
 
     def _handle_wrapped_process_shutdown(self) -> None:
         self._wrapped_process.close()
@@ -145,7 +156,7 @@ class AbstractShellProcessWrapper(AbstractClass):
                         command = self._get_exit_keyword_for_wrapped_process()
                         self._keep_running = False
 
-                    normalized_command = self._normalize_command_and_try_change_command_execution_logic(command)
+                    normalized_command = self._preprocess_command(command)
                     if normalized_command is not None:
                         self._execute_command_in_wrapped_process(normalized_command)
                 # To accommodate asyncio SIGINT handler override
@@ -155,6 +166,9 @@ class AbstractShellProcessWrapper(AbstractClass):
                 # To be safe between asyncio.Runner.run() executions       
                 except ShellProcessWrapperInterruptException:
                     self._handle_prompt_method_call_interrupt()
+                    continue
+                except CommandMalformedException as e:
+                    print(f"Command malformed exception: {str(e)}")
                     continue
                 except EOFError:
                     break

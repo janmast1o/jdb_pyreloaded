@@ -5,10 +5,9 @@ from prompt_toolkit.input import Input
 from typing import Optional, Dict, Any, List
 from typing_extensions import override
 
-from src.io.special_line_processor import SpecialLineProcessor
 from src.process.abstract_shell_process_wrapper import WrappingSessionOptions
 from src.process.single_threaded_shell_process_wrapper import SingleThreadedShellProcessWrapper
-from src.utils.util_objects import SimpleString
+from src.utils.util_objects import BaseString, SimpleString
 
 class SelectedPythonKeywordsCompleter(Completer):
     PYTHON_KEYWORD_SELECTION = [
@@ -28,13 +27,16 @@ class SelectedPythonKeywordsCompleter(Completer):
 
 class PythonConsoleWrapper(SingleThreadedShellProcessWrapper):
     def __init__(self, wrapping_session_options: WrappingSessionOptions, 
+                 ignore_wrapped_process_input_line: bool = True,
                  run_in_main_thread: bool = True, 
                  start_immediately: bool = True, 
                  exit_keyword: str = "exit", 
                  stdout = sys.stdout, stderr = sys.stderr,
                  input_for_wrapping_session: Optional[Input] = None):
         super().__init__(
-            wrapping_session_options, run_in_main_thread,
+            wrapping_session_options, 
+            ignore_wrapped_process_input_line,
+            run_in_main_thread,
             start_immediately, exit_keyword, 
             stdout, stderr, input_for_wrapping_session
         )
@@ -52,7 +54,7 @@ class PythonConsoleWrapper(SingleThreadedShellProcessWrapper):
         return "exit()"
 
     @override
-    def _normalize_command_and_try_change_command_execution_logic(self, command) -> Optional[str]:
+    def _preprocess_command(self, command) -> Optional[str]:
         return command
 
     @override
@@ -64,9 +66,5 @@ class PythonConsoleWrapper(SingleThreadedShellProcessWrapper):
         return [">>>"]
 
     @override
-    def _create_special_line_processor(self) -> SpecialLineProcessor:
-        return SpecialLineProcessor(
-            lines_to_process_specially=[SimpleString(">>>")],
-            line_processing_function=lambda unused_index, unused_line: None, 
-            automatically_strip_lines=True
-        )
+    def _create_input_line_match_pattern(self) -> BaseString:
+        return SimpleString(">>>")

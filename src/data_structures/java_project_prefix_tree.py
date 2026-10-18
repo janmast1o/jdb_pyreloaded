@@ -72,9 +72,6 @@ class JavaProjectPrefixTree:
             b_node = self._children_nodes_map[c][1]
             b_node_type = b_node.get_type_enum_value()
 
-            # print("Longest common prefix:", longest_common_prefix)
-            # print(new_child_word, preexisting_child_word)
-
             if n < len(new_child_word) and n < len(preexisting_child_word):
                 split_node: JavaProjectPrefixTree.Node = None
                 if b_node_type == JavaProjectPrefixTree.NodeType.PACKAGE_PART:

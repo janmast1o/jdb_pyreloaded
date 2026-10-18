@@ -1,20 +1,23 @@
 import io
 import sys
-import traceback
 
+from typing import Optional, List
 from typing_extensions import override
 
+from src.io.abstract_wrapped_process_output_interceptor import AbstractWrappedProcessOutputInterceptor
 from src.io.abstract_wrapped_process_stdout_sink import AbstractWrappedProcessStdoutSink
-from src.io.special_line_processor import SpecialLineProcessor
+from src.utils.util_objects import BaseString
 
 
 # Since it's meant to be used primarily with pexpect it needs to implement
 # two methods - write() and flush(), which should behave similarly
 # to those of a TextIOWrapper object
 class SingleThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
-    def __init__(self, special_line_processor: SpecialLineProcessor,
+    def __init__(self, input_line_match_pattern: BaseString,
+                 ignore_input_line: bool,
+                 optional_output_interceptor: Optional[AbstractWrappedProcessOutputInterceptor] = None,
                  io_sink: io.TextIOWrapper = sys.stdout):
-        super().__init__(special_line_processor, io_sink)
+        super().__init__(input_line_match_pattern, ignore_input_line, optional_output_interceptor, io_sink)
 
     @override
     def write(self, s: str) -> None:
@@ -27,20 +30,20 @@ class SingleThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
             self.line_to_ignore_next_occurrence_of = None
             return
 
-        separate_lines = s.splitlines(keepends=True)
-        processed_lines = []
-        for line in separate_lines:
-            i = self._special_line_processor.maybe_get_matching_special_line_index(line)
-            if i is None:
-                processed_lines.append(line)
+        s_lines = self._split_text_into_lines(s)
+        s_lines = self._maybe_add_last_call_trailing_unfinished_line(s_lines)
+        # Might look clearer without De Morgan's law applied:
+        # (not an input line) and (doesn't end with newline)
+        last_is_an_input_line = self._is_input_line(s_lines[-1])
+        if not (last_is_an_input_line or s_lines[-1].endswith("\n")):
+            self._last_write_call_trailing_unfinished_line = s_lines.pop(-1)
+        elif last_is_an_input_line:
+            if self._ignore_input_line:
+                s_lines.pop(-1)
             else:
-                processed_special_line = self._special_line_processor.apply_to_line_of_type(i, line)
-                if processed_special_line is not None:
-                    line_terminated_with_newline = len(line) > 0 and line[-1] == "\n"
-                    processed_lines.append(processed_special_line + "\n" if line_terminated_with_newline else "")
+                s_lines[-1] = s_lines[-1] + "\n"
 
-        self.io_sink.write("".join(processed_lines))    
+        if self._optional_output_interceptor is not None:
+            s_lines = self._optional_output_interceptor.intercept_on_write(s_lines)
 
-    @override
-    def flush(self) -> None:
-        self.io_sink.flush()     
+        self.io_sink.write("".join(s_lines))

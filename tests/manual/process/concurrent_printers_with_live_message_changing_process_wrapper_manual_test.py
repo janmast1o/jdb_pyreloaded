@@ -1,5 +1,4 @@
 import argparse
-import signal
 
 from src.io.terminal_input_consumer import TerminalInputConsumer
 from src.process.abstract_shell_process_wrapper import WrappingSessionOptions
@@ -26,12 +25,8 @@ if __name__ == "__main__":
         complete_in_thread=args.complete_in_thread
     )   
 
-    # signal.signal(
-    #     signal.SIGINT, 
-    #     RaiseExceptionAfterReceivingSignal(error_type_to_raise=ShellProcessWrapperInterruptException).get_handler()
-    # )
-
     concurrent_printers_wrapper = ConcurrentPrintersWithLiveMessageChangingWrapper(
-        wrapping_session_options, start_immediately=True, exit_keyword="exit",
+        wrapping_session_options=wrapping_session_options, 
+        start_immediately=True, exit_keyword="exit",
         number_of_printers=args.number_of_printers
     )
