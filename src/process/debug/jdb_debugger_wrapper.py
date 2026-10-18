@@ -8,7 +8,6 @@ from typing_extensions import override
 
 from src.io.abstract_wrapping_process_input_interceptor import AbstractWrappingProcessInputInterceptor
 from src.io.abstract_wrapped_process_output_interceptor import AbstractWrappedProcessOutputInterceptor
-from src.io.special_line_processor import SpecialLineProcessor
 from src.io.debug.jdb_output_interceptor import JDBOutputInterceptor
 from src.io.debug.jdb_wrapper_input_interceptor import JDBWrapperInputInterceptor
 from src.process.multi_threaded_shell_process_wrapper import (

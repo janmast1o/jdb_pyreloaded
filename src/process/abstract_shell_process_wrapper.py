@@ -11,7 +11,6 @@ from prompt_toolkit.completion import Completer
 
 from src.io.abstract_wrapping_process_input_interceptor import AbstractWrappingProcessInputInterceptor
 from src.io.abstract_wrapped_process_output_interceptor import AbstractWrappedProcessOutputInterceptor
-from src.io.special_line_processor import SpecialLineProcessor
 from src.process.internal_use_interceptors_and_completer_creator import InternalUseInterceptorsAndCompleterCreator
 from src.utils.util_objects import BaseString
 from src.utils.custom_exceptions import ShellProcessWrapperInterruptException, CommandMalformedException
@@ -153,14 +152,11 @@ class AbstractShellProcessWrapper(InternalUseInterceptorsAndCompleterCreator):
             while self._keep_running:
                 try:
                     command: str = self._read_command_from_wrapping_session_prompt()
-                    # print("Command: ", command)
-                    # print("Exit keyword: ", self._exit_keyword)
                     if command == self._exit_keyword:
                         command = self._get_exit_keyword_for_wrapped_process()
                         self._keep_running = False
 
                     normalized_command = self._preprocess_command(command)
-                    # print(f"Normalized command: {normalized_command}")
                     if normalized_command is not None:
                         self._execute_command_in_wrapped_process(normalized_command)
                 # To accommodate asyncio SIGINT handler override

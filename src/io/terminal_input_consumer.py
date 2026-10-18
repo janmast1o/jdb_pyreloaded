@@ -42,8 +42,6 @@ class TerminalInputConsumer:
             if TerminalInputConsumer.ORIGINAL_TERMINAL_SETTINGS is None:
                 TerminalInputConsumer.ORIGINAL_TERMINAL_SETTINGS = self.old_settings
 
-            print(self.old_settings)    
-
     @property
     def os_type(self) -> OSType:
         return (OSType.WIN32 if (self.msvcrt is not None) else OSType.UNIX)

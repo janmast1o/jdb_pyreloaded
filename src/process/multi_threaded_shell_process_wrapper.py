@@ -58,8 +58,8 @@ class MultiThreadedShellProcessWrapper(AbstractShellProcessWrapper):
                         # be considered normal behavior
                         pass
                     except Exception as e:
-                        # print(f"Got unexpected exception: {str(e)}, will resume anyway")
-                        continue
+                        if isinstance(e, KeyboardInterrupt) or isinstance(e, OSError):
+                            raise e
                     if wrapped_process.delayafterread is not None:
                         time.sleep(wrapped_process.delayafterread) 
             except KeyboardInterrupt:

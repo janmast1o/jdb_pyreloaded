@@ -5,7 +5,6 @@ from prompt_toolkit.input import Input
 from typing import Optional, Dict, Any, List
 from typing_extensions import override
 
-from src.io.special_line_processor import SpecialLineProcessor
 from src.process.abstract_shell_process_wrapper import WrappingSessionOptions
 from src.process.single_threaded_shell_process_wrapper import SingleThreadedShellProcessWrapper
 from src.utils.util_objects import BaseString, SimpleString

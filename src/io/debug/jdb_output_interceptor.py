@@ -39,8 +39,6 @@ class JDBOutputInterceptor(AbstractWrappedDebuggerOutputInterceptor):
     def _find_code_address_in_line(self, line: str, message_kind: BreakpointRelatedMessageKind) -> Optional[str]:
         code_address: Optional[str] = None
         line_parts = line.lstrip(">").strip().split()
-        # print(f"Line: {line}")
-        # print(f"Line chars: {list(line)}")
 
         if message_kind == BreakpointRelatedMessageKind.DEFERRING_BREAKPOINT:
             # After 'Deferring' and 'breakpoint'
@@ -88,7 +86,6 @@ class JDBOutputInterceptor(AbstractWrappedDebuggerOutputInterceptor):
 
     @override
     def _handle_breakpoint_related_message(self, matched_kind: BreakpointRelatedMessageKind, line: str) -> Optional[str]:
-        # print(f"Matched kind: {matched_kind}, line: {line}")
         if (matched_kind & JDBOutputInterceptor.BREAKPOINT_MESSAGE_KINDS_TO_THROTTLE) != 0:
             return None
         
@@ -104,7 +101,6 @@ class JDBOutputInterceptor(AbstractWrappedDebuggerOutputInterceptor):
         else:
             breakpoint_kind = self._breakpoint_manager.get_condition_type_for_code_address(code_address)        
 
-        print(f"Line: {line}, CA: {code_address}, BK: {breakpoint_kind}")
         terminated_with_newline = False
         if line.endswith("\n"):
             terminated_with_newline = True

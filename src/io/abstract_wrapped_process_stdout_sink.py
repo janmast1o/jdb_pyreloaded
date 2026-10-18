@@ -6,7 +6,6 @@ from abc import abstractmethod
 from typing import Optional, List
 
 from src.io.abstract_wrapped_process_output_interceptor import AbstractWrappedProcessOutputInterceptor
-from src.io.special_line_processor import SpecialLineProcessor
 from src.utils.util_objects import BaseString
 
 
@@ -48,7 +47,6 @@ class AbstractWrappedProcessStdoutSink:
         if line.endswith("\n"):
             return False
         line = line.strip()
-        # print(f"Line: {line}; input line format: {self._input_line_format}")
         if self._input_line_format.is_regex():
             return re.match(self._input_line_format, line)
         else:

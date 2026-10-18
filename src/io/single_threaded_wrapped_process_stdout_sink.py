@@ -6,7 +6,6 @@ from typing_extensions import override
 
 from src.io.abstract_wrapped_process_output_interceptor import AbstractWrappedProcessOutputInterceptor
 from src.io.abstract_wrapped_process_stdout_sink import AbstractWrappedProcessStdoutSink
-from src.io.special_line_processor import SpecialLineProcessor
 from src.utils.util_objects import BaseString
 
 
@@ -32,10 +31,7 @@ class SingleThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
             return
 
         s_lines = self._split_text_into_lines(s)
-        # print("S_lines: ", s_lines)
-        # print("Trailing = ", self._last_write_call_trailing_unfinished_line)
         s_lines = self._maybe_add_last_call_trailing_unfinished_line(s_lines)
-        # print(s_lines)
         # Might look clearer without De Morgan's law applied:
         # (not an input line) and (doesn't end with newline)
         last_is_an_input_line = self._is_input_line(s_lines[-1])

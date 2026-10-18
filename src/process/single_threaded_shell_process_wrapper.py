@@ -6,7 +6,6 @@ from typing_extensions import override
 
 from src.process.abstract_shell_process_wrapper import *
 from src.io.single_threaded_wrapped_process_stdout_sink import SingleThreadedWrappedProcessStdoutSink
-from src.io.special_line_processor import SpecialLineProcessor
 
 
 class SingleThreadedShellProcessWrapper(AbstractShellProcessWrapper):

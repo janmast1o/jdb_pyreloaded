@@ -8,7 +8,6 @@ from typing_extensions import override
 
 from src.io.abstract_wrapped_process_output_interceptor import AbstractWrappedProcessOutputInterceptor
 from src.io.abstract_wrapped_process_stdout_sink import AbstractWrappedProcessStdoutSink
-from src.io.special_line_processor import SpecialLineProcessor
 from src.utils.custom_exceptions import ShellProcessWrapperInterruptException
 from src.utils.signal_utils import RaiseExceptionAfterReceivingSignal
 from src.utils.util_objects import BooleanWrapper, BaseString
@@ -81,7 +80,6 @@ class MultiThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
 
         s_lines = self._split_text_into_lines(s)
         s_lines = self._maybe_add_last_call_trailing_unfinished_line(s_lines)
-        # print("S_lines: ", s_lines)
         # Might look clearer without De Morgan's law applied:
         # (not an input line) and (doesn't end with newline)
         last_is_an_input_line = self._is_input_line(s_lines[-1])
