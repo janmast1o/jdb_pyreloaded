@@ -3,245 +3,109 @@ import unittest
 from src.data_structures.java_project_prefix_tree import *
 
 
+NodeType = JavaProjectPrefixTree.NodeType
+Node = JavaProjectPrefixTree.Node
+PackagePartNode = JavaProjectPrefixTree.PackagePartNode
+FilePartNode = JavaProjectPrefixTree.FilePartNode
+
+
 class JavaProjectPrefixTreeNodesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.parent_node = JavaProjectPrefixTree.PackagePartNode("something", None, True)
+        cls.parent_node = PackagePartNode("something", None, True)
         return super().setUpClass()
     
     def setUp(self):
         self.parent_node._children_nodes_map.clear()
         return super().setUp()
     
-    def test_empty_package_part_child(self):
-        self.parent_node.add_empty_package_part_child()
-        empty_package_part_child = self.parent_node._children_nodes_map.get(
-            JavaProjectPrefixTree.Node.EMPTY_KEY_MARKER, (None, None)
-        )[1]
+    def test_get_node_type(self):
+        package_part_node = PackagePartNode("somegpackage", NodeType.PACKAGE_PART, dot_terminated=True)
+        self.assertEqual(NodeType.PACKAGE_PART, package_part_node.get_type_enum_value())
+        file_part_node = FilePartNode("Somefile", NodeType.FILE_PART)
+        self.assertEqual(NodeType.FILE_PART, file_part_node.get_type_enum_value())
 
-        self.assertIsNotNone(empty_package_part_child)
-        self.assertEqual(empty_package_part_child.parent_node, self.parent_node)
-        self.assertEqual(empty_package_part_child.word, "")
+    def test_add_new_children(self):
+        expected_new_children_names_and_types: List[Tuple[str, NodeType]] = [
+            ("concurrency", NodeType.PACKAGE_PART), ("threading", NodeType.PACKAGE_PART),
+            ("Main", NodeType.FILE_PART), ("ActivityMonitor", NodeType.FILE_PART)
+        ]
 
-        self.assertEqual(empty_package_part_child.get_type_enum_value(), JavaProjectPrefixTree.NodeType.PACKAGE_PART)
-        self.assertTrue(empty_package_part_child.dot_terminated) 
-    
-    def test_add_non_colliding_children_nodes(self):
-        self.parent_node.add_new_child(
-            "auth", JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True
-        )
-        self.parent_node.add_new_child(
-            "concurrency", JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True
-        )
-        self.parent_node.add_new_child(
-            "file", JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True
-        )
+        for child_name, child_node_type in expected_new_children_names_and_types:
+            if child_node_type == NodeType.PACKAGE_PART:
+                self.parent_node.add_new_child(child_name, child_node_type, dot_terminated=True)
+            else:
+                self.parent_node.add_new_child(child_name, child_node_type)
 
-        self.parent_node.add_new_child("Daemon", JavaProjectPrefixTree.NodeType.FILE_PART)
-        self.parent_node.add_new_child("Shell", JavaProjectPrefixTree.NodeType.FILE_PART)
+        actual_parent_node_children = [(l, child_item) for l, child_item in self.parent_node._children_nodes_map.items()]
+        expected_new_children_names_and_types.sort(key=lambda x: x[0])
+        actual_parent_node_children.sort(key=lambda x: x[0])
 
-        children_key_set = {k for k in self.parent_node._children_nodes_map.keys()}
-        full_word_key_set = {"auth", "concurrency", "file", "Daemon", "Shell"}
+        self.assertEqual(len(expected_new_children_names_and_types), len(actual_parent_node_children))
+        n = len(expected_new_children_names_and_types)
+        for i in range(n):
+            expected_child_word, expected_child_node_type = expected_new_children_names_and_types[i]
+            expected_child_letter_key = expected_child_word[0]
+            actual_child_letter_key, (actual_child_word, actual_child_node) = actual_parent_node_children[i]
 
-        self.assertEqual(children_key_set, {k[0] for k in full_word_key_set})
+            assertion_failed_message = f"Assertion failed for {expected_new_children_names_and_types[i]}"
+            self.assertEqual(expected_child_letter_key, actual_child_letter_key, assertion_failed_message)
+            self.assertEqual(expected_child_word, actual_child_word, assertion_failed_message)
+            self.assertEqual(expected_child_node_type, actual_child_node.get_type_enum_value(), assertion_failed_message)
 
-        for key in full_word_key_set:
-            k = key[0]
-            word, child_node = self.parent_node._children_nodes_map[k]
-            self.assertEqual(word, key)
-            self.assertEqual(child_node.parent_node, self.parent_node)
-            self.assertEqual(child_node.word, word)
+    def test_new_child_addition_blocked_on_collision(self):
+        self.parent_node.add_new_child("transactions", NodeType.PACKAGE_PART, dot_terminated=True)
+        e: Exception = None
 
-            if k == k.lower():
-                self.assertTrue(getattr(child_node, "dot_terminated"))
+        try:
+            self.parent_node.add_new_child("threading", NodeType.PACKAGE_PART, dot_terminated=True)
+        except Exception as surfaced_exception:
+            e = surfaced_exception
 
-    def test_add_word_lambda_colliding_with_word_delta_with_common_prefix_shorter_than_both(self):
-        delta_node = self.parent_node.add_new_child(
-            "audit", JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True
-        )     
+        self.assertIsNotNone(e)
+        self.assertIsInstance(e, Exception)                 
 
-        delta_node.add_new_child("log", JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
-        delta_node.add_new_child("DirectorySetup", JavaProjectPrefixTree.NodeType.FILE_PART)
+    def test_move_children_from_other_node(self):
+        transfer_source_node = self.parent_node
+        transfer_source_node.add_new_child("concurrency", NodeType.PACKAGE_PART, dot_terminated=True)
+        transfer_source_node.add_new_child("logging", NodeType.PACKAGE_PART, dot_terminated=True)
+        transfer_source_node.add_new_child("Main", NodeType.FILE_PART)
+        nodes_map = transfer_source_node._children_nodes_map
 
-        auth_node = self.parent_node.add_new_child(
-            "auth", JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True
-        ) 
+        transfer_destination_node = PackagePartNode(word="", parent_node=None)
+        transfer_destination_node._move_children_map_from_other_node(transfer_source_node)
+        self.assertIs(nodes_map, transfer_destination_node._children_nodes_map)
+        self.assertEqual(3, len(transfer_destination_node._children_nodes_map))
+        self.assertEqual(0, len(transfer_source_node._children_nodes_map))
 
-        # Assert that the 'a' node has been properly split
-        split_node_word, split_node = self.parent_node._children_nodes_map["a"] 
-        self.assertEqual("au", split_node_word)
-        self.assertEqual("au", split_node.word)
-        self.assertEqual(self.parent_node, split_node.parent_node)
-        self.assertEqual(split_node.get_type_enum_value(), JavaProjectPrefixTree.NodeType.PACKAGE_PART)
-        self.assertFalse(getattr(split_node, "dot_terminated"))  
+        for _, child_node in transfer_destination_node._children_nodes_map.values():
+            self.assertEqual(transfer_destination_node, child_node.parent_node)
 
-        # Assert that the split node points to 'dit' and 'th' nodes as children
-        self.assertEqual({k for k in split_node._children_nodes_map.keys()}, {"d", "t"})
-        self.assertEqual(\
-            {word for word, _ in split_node._children_nodes_map.values()}, 
-            {"dit", "th"}
-        )  
+    def test_add_empty_package_part_dot_terminated_child(self):
+        empty_package_part_dot_terminated_node = self.parent_node.add_empty_package_part_dot_terminated_child()
+        self.assertTrue(Node.EMPTY_KEY_MARKER in self.parent_node._children_nodes_map)
+        self.assertIsInstance(empty_package_part_dot_terminated_node, PackagePartNode)
+        self.assertEqual("", empty_package_part_dot_terminated_node.word)
+        self.assertTrue(getattr(empty_package_part_dot_terminated_node, "dot_terminated", False))
 
-        # Assert that the node correctly returned the newly inserted node ('auth' node)
-        self.assertEqual(auth_node, split_node._children_nodes_map["t"][1])
+    def test_split_node(self):
+        node = self.parent_node.add_new_child("company", NodeType.PACKAGE_PART, dot_terminated=True)
+        node.add_new_child("concurrency", NodeType.PACKAGE_PART, dot_terminated=True)
+        node.add_new_child("threading", NodeType.PACKAGE_PART, dot_terminated=True) 
+        node.add_new_child("Main", NodeType.FILE_PART)
+        children_nodes = node._children_nodes_map
+        prefix_node, suffix_node = node.split_node(2)
 
-        auth_node_word, auth_node = split_node._children_nodes_map["t"]
-        audit_node_word, audit_node = split_node._children_nodes_map["d"]
+        self.assertEqual("com", prefix_node.word)
+        self.assertEqual(self.parent_node, prefix_node.parent_node)
+        self.assertFalse(prefix_node.dot_terminated)
+        self.assertEqual({"p" : ("pany", suffix_node)}, prefix_node._children_nodes_map)
+        self.assertEqual({"c" : ("com", prefix_node)}, self.parent_node._children_nodes_map)
 
-        # Assert that 'auth' node correctly constructed
-        self.assertEqual("th", auth_node_word)
-        self.assertEqual("th", auth_node.word)
-        self.assertEqual(split_node, auth_node.parent_node)
-        self.assertEqual(auth_node.get_type_enum_value(), JavaProjectPrefixTree.NodeType.PACKAGE_PART)
-        self.assertEqual(0, len(auth_node._children_nodes_map))
-        self.assertTrue(getattr(auth_node, "dot_terminated"))
-
-        # Assert that 'audit' node correctly constructed after splitting
-        self.assertEqual("dit", audit_node_word)
-        self.assertEqual("dit", audit_node.word)
-        self.assertEqual(split_node, audit_node.parent_node)
-        self.assertEqual(audit_node.get_type_enum_value(), JavaProjectPrefixTree.NodeType.PACKAGE_PART)
-        self.assertEqual({k for k in audit_node._children_nodes_map.keys()}, {"l", "D"})
-        self.assertEqual(
-            {word for word, _ in audit_node._children_nodes_map.values()},
-            {"log", "DirectorySetup"}
-        )
-        self.assertTrue(getattr(audit_node, "dot_terminated"))
-
-    def test_add_word_lambda_colliding_with_word_delta_and_lambda_is_prefix_of_delta_with_dot_terminated(self):
-        delta_node = self.parent_node.add_new_child(
-            "concurrency", JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True
-        )
-
-        thread_pool_node = delta_node.add_new_child("ThreadPool", JavaProjectPrefixTree.NodeType.FILE_PART)
-        async_task_node = delta_node.add_new_child("AsyncTask", JavaProjectPrefixTree.NodeType.FILE_PART)
-
-        con_node = self.parent_node.add_new_child(
-            "con", JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True
-        )
-
-        # Asset that 'con' node has been added correctly as the child of the parent node
-        self.assertEqual(con_node, self.parent_node._children_nodes_map["c"][1])
-        self.assertEqual("con", self.parent_node._children_nodes_map["c"][0])
-        self.assertEqual("con", con_node.word)
-        self.assertEqual(self.parent_node, con_node.parent_node)
-        self.assertEqual(con_node.get_type_enum_value(), JavaProjectPrefixTree.NodeType.PACKAGE_PART)
-
-        # 'con' node should have two children - one for 'concurrency' and one empty to denote dot termination
-        self.assertFalse(getattr(con_node, "dot_terminated"))
-        self.assertEqual({"c", JavaProjectPrefixTree.Node.EMPTY_KEY_MARKER}, {k for k in con_node._children_nodes_map.keys()})
-        self.assertEqual(
-            {"currency", ""}, {word for word, _ in con_node._children_nodes_map.values()}
-        )
-
-        # Assert that the empty dot terminated node has been constructed correctly
-        empty_dot_terminated_node_word, empty_dot_terminated_node = con_node._children_nodes_map[JavaProjectPrefixTree.Node.EMPTY_KEY_MARKER]
-        self.assertEqual("", empty_dot_terminated_node_word)
-        self.assertEqual("", empty_dot_terminated_node.word)
-        self.assertEqual(con_node, empty_dot_terminated_node.parent_node)
-        self.assertEqual(con_node.get_type_enum_value(), JavaProjectPrefixTree.NodeType.PACKAGE_PART)
-        self.assertTrue(getattr(empty_dot_terminated_node, "dot_terminated"))
-        self.assertEqual(0, len(empty_dot_terminated_node._children_nodes_map))
-
-        # Assert that 'concurrency' node has been correctly split and 'currency' has been pushed down the tree
-        concurrency_node_word, concurrency_node = con_node._children_nodes_map["c"]
-        self.assertEqual("currency", concurrency_node_word)
-        self.assertEqual("currency", concurrency_node.word)
-        self.assertEqual(con_node, concurrency_node.parent_node)
-        self.assertEqual(concurrency_node.get_type_enum_value(), JavaProjectPrefixTree.NodeType.PACKAGE_PART)
-        self.assertTrue(getattr(concurrency_node, "dot_terminated"))
-        self.assertTrue({k for k in concurrency_node._children_nodes_map.keys()}, {"T", "A"})
-        self.assertEqual(
-            {word for word, _ in concurrency_node._children_nodes_map.values()},
-            {"ThreadPool", "AsyncTask"}
-        )
-
-        # Assert that the children nodes of concurrency got correctly pushed down the tree with it
-        self.assertEqual(thread_pool_node, concurrency_node._children_nodes_map["T"][1])
-        self.assertEqual(async_task_node, concurrency_node._children_nodes_map["A"][1])
-
-    def test_add_word_lambda_colliding_with_word_delta_and_lambda_is_prefix_of_delta_without_dot_termination(self):
-        delta_node = self.parent_node.add_new_child(
-            "concurrency", JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True
-        )
-
-        thread_pool_node = delta_node.add_new_child("ThreadPool", JavaProjectPrefixTree.NodeType.FILE_PART)
-        async_task_node = delta_node.add_new_child("AsyncTask", JavaProjectPrefixTree.NodeType.FILE_PART)
-
-        con_node = self.parent_node.add_new_child(
-            "con", JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=False
-        )
-
-        # Asset that 'con' node has been added correctly as the child of the parent node
-        self.assertEqual(con_node, self.parent_node._children_nodes_map["c"][1])
-        self.assertEqual("con", self.parent_node._children_nodes_map["c"][0])
-        self.assertEqual("con", con_node.word)
-        self.assertEqual(self.parent_node, con_node.parent_node)
-        self.assertEqual(con_node.get_type_enum_value(), JavaProjectPrefixTree.NodeType.PACKAGE_PART)
-
-        # 'con' node should have two children - one for 'concurrency'
-        self.assertFalse(getattr(con_node, "dot_terminated"))
-        self.assertEqual({"c"}, {k for k in con_node._children_nodes_map.keys()})
-        self.assertEqual(
-            {"currency"}, {word for word, _ in con_node._children_nodes_map.values()}
-        )
-
-        # Assert that 'concurrency' node has been correctly split and 'currency' has been pushed down the tree
-        concurrency_node_word, concurrency_node = con_node._children_nodes_map["c"]
-        self.assertEqual("currency", concurrency_node_word)
-        self.assertEqual("currency", concurrency_node.word)
-        self.assertEqual(con_node, concurrency_node.parent_node)
-        self.assertEqual(concurrency_node.get_type_enum_value(), JavaProjectPrefixTree.NodeType.PACKAGE_PART)
-        self.assertTrue(getattr(concurrency_node, "dot_terminated"))
-        self.assertTrue({k for k in concurrency_node._children_nodes_map.keys()}, {"T", "A"})
-        self.assertEqual(
-            {word for word, _ in concurrency_node._children_nodes_map.values()},
-            {"ThreadPool", "AsyncTask"}
-        )
-
-        # Assert that the children nodes of concurrency got correctly pushed down the tree with it
-        self.assertEqual(thread_pool_node, concurrency_node._children_nodes_map["T"][1])
-        self.assertEqual(async_task_node, concurrency_node._children_nodes_map["A"][1])    
-
-    def test_add_lambda_colliding_with_word_delta_and_delta_is_prefix_of_lambda(self):
-        log_node = self.parent_node.add_new_child(
-            "log", JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True
-        )    
-
-        audit_noe = log_node.add_new_child(
-            "audit", JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True
-        )
-        directory_setup_node = log_node.add_new_child("DirectorySetup", JavaProjectPrefixTree.NodeType.FILE_PART)
-
-        login_and_auth_utils_node = self.parent_node.add_new_child(
-            "login_and_auth_utils", JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True
-        )
-
-        # Assert that `log` node is no longer node terminated and has "login_and_auth_utils" node as child 
-        self.assertFalse(getattr(log_node, "dot_terminated"))
-        self.assertIn(login_and_auth_utils_node, [child_node for _, child_node in log_node._children_nodes_map.values()])
-
-        # Assert that 'log_and_auth_utils_node' has been correctly added
-        self.assertEqual("in_and_auth_utils", login_and_auth_utils_node.word)
-        self.assertEqual(log_node, login_and_auth_utils_node.parent_node)
-        self.assertEqual(login_and_auth_utils_node.get_type_enum_value(), JavaProjectPrefixTree.NodeType.PACKAGE_PART)
-        self.assertTrue(getattr(login_and_auth_utils_node, "dot_terminated"))
-        self.assertEqual(0, len(login_and_auth_utils_node._children_nodes_map))
-
-        # Assert other children of 'log' remain the same and also an empty dot terminated child has been added
-        self.assertEqual(
-            {k for k in log_node._children_nodes_map.keys()},
-            {"i", "a", "D", JavaProjectPrefixTree.Node.EMPTY_KEY_MARKER}
-        )
-        self.assertEqual(
-            {word for word, _ in log_node._children_nodes_map.values()}, 
-            {"in_and_auth_utils", "audit", "DirectorySetup", ""}
-        )
-
-        empty_dot_terminated_node_word, empty_dot_terminated_node = log_node._children_nodes_map[JavaProjectPrefixTree.Node.EMPTY_KEY_MARKER]
-        self.assertEqual("", empty_dot_terminated_node_word)
-        self.assertEqual("", empty_dot_terminated_node.word)
-        self.assertTrue(getattr(empty_dot_terminated_node, "dot_terminated"))
+        self.assertEqual("pany", suffix_node.word)
+        self.assertTrue(suffix_node.dot_terminated)
+        self.assertEqual(prefix_node, suffix_node.parent_node)
+        self.assertIs(children_nodes, suffix_node._children_nodes_map)
 
 
 if __name__ == "__main__":
