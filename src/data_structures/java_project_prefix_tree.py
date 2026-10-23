@@ -3,6 +3,7 @@ from typing import Optional, Dict, Tuple, List
 from typing_extensions import override
 from enum import Enum
 
+from src.utils.custom_exceptions import SequenceNotStoredInPrefixTreeException
 from src.utils.util_functions import find_longest_common_prefix_of_two_words
 
 
@@ -53,11 +54,26 @@ class JavaProjectPrefixTree:
         def get_type_enum_value(self) -> "JavaProjectPrefixTree.NodeType":
             pass
 
+        def get_full_sequence_from_the_root(self) -> str:
+            predecessor_words: List[str] = [self.word]
+            predecessor = self.parent_node
+            while predecessor is not None:
+                w = predecessor.word
+                if getattr(predecessor, "dot_terminated", False):
+                    w = w + "."
+                predecessor_words.append(w)
+                predecessor = predecessor.parent_node
+
+            return "".join(predecessor_words.reverse())   
+
         def _move_children_map_from_other_node(self, other_node: "JavaProjectPrefixTree.Node") -> None:
             self._children_nodes_map = other_node._children_nodes_map
             other_node._children_nodes_map = None
             for _, child_node in self._children_nodes_map.values():
-                child_node.parent_node = self        
+                child_node.parent_node = self
+
+        def _try_get_empty_package_part_child(self) -> Optional["JavaProjectPrefixTree.PackagePartNode"]:
+            return self._children_nodes_map.get(JavaProjectPrefixTree.Node.EMPTY_KEY_MARKER, ("", None))[1]
 
         def add_empty_package_part_child(self) -> "JavaProjectPrefixTree.PackagePartNode":
             self._children_nodes_map[self.EMPTY_KEY_MARKER] = ("", JavaProjectPrefixTree.PackagePartNode("", self, True))
@@ -229,7 +245,7 @@ class JavaProjectPrefixTree:
         word_parts = fully_qualified_filename.split(sep=".")
         if word_parts[-1] == "":
             word_parts.pop(-1)  
-        last_word_index = len(word_parts) - 1
+        last_word_index = len(word_parts)-1
         node = self.root
 
         for word_index in range(0, last_word_index+1):
@@ -269,42 +285,63 @@ class JavaProjectPrefixTree:
                 else:
                     node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True) 
 
-    def find_node_containing_prefix(self, word: str) -> "JavaProjectPrefixTree.Node":
-        word_parts = word.split(sep=".")
+    # Returns a tuple:
+    #   - node that contains the prefix
+    #   - True, if prefix associated node is equal to the passed argument, otherwise False
+    def find_node_containing_prefix(self, fully_qualified_filename: str) -> Tuple["JavaProjectPrefixTree.Node", bool]:
+        if len(fully_qualified_filename) == 0:
+            return self.root, True
+        elif len(fully_qualified_filename.replace(".", "")):
+            raise SequenceNotStoredInPrefixTreeException("Malformed input")
+            
+        word_parts = fully_qualified_filename.split(sep=".")
         if word_parts[-1] == "":
             word_parts.pop(index=-1)
-
-        last_word_index = len(word_parts) - 1
+        last_word_index = len(word_parts)-1
         word_index, letter_index = 0, 0
-
         node = self.root
+        # We predefine it 
+        longest_common_prefix: str = None
+        error_message = f"Prefix {fully_qualified_filename} not stored in the tree"
 
         while word_index <= last_word_index:
+            iteration_beginning_word_index = word_index
             word = word_parts[word_index]
+            is_current_word_file_part = (word_index == last_word_index) and (word[0] == word[0].upper())
             candidate_word, candidate_node = node._children_nodes_map.get(word[letter_index], ("", None))
             if candidate_node is None:
-                raise Exception(f"Word {word} is not stored in the data structure")
-            
-            longest_common_prefix = find_longest_common_prefix_of_two_words(candidate_word, word[letter_index:])
-            n = len(longest_common_prefix)
+                raise SequenceNotStoredInPrefixTreeException(error_message)
 
-            if n < len(candidate_word) and n < len(word):
-                raise Exception(f"Word {word} is not stored in the data structure")
-            
-            letter_index += n
-            if n == len(candidate_word):
+            word_suffix = word[letter_index:]
+            longest_common_prefix = find_longest_common_prefix_of_two_words(word_suffix, candidate_word)
+            if longest_common_prefix == word_suffix:
                 node = candidate_node
-            if letter_index == len(word):    
+                if not (is_current_word_file_part or getattr(candidate_node, "dot_terminated", False)):
+                    node = candidate_node._try_get_empty_package_part_child()
+
                 word_index += 1
                 letter_index = 0
+            else:
+                letter_index += len(longest_common_prefix)
+                node = candidate_node
 
-            if word_index == last_word_index and word[-1] == ".":
-                if node.get_type_enum_value() == JavaProjectPrefixTree.NodeType.FILE_PART:
-                    raise Exception(f"Word {word} is not stored in the data structure")
-                elif not node.dot_terminated and JavaProjectPrefixTree.Node.EMPTY_KEY_MARKER in node._children_nodes_map:
-                    node = node._children_nodes_map[JavaProjectPrefixTree.Node.EMPTY_KEY_MARKER][1]
+            if candidate_node is None:
+                raise SequenceNotStoredInPrefixTreeException(error_message)
 
-        return node
+            if not is_current_word_file_part: # is package part
+                # If we moved onto the next word we should be at a node that signifies the module end
+                if word_index > iteration_beginning_word_index and (not getattr(node, "dot_terminated", False)):
+                    raise SequenceNotStoredInPrefixTreeException(error_message)
+                # If we didn't move onto the next word we cannot be at a node that signifies the module end
+                elif word_index == iteration_beginning_word_index and getattr(node, "dot_terminated", False):
+                    raise SequenceNotStoredInPrefixTreeException(error_message)
+
+        if fully_qualified_filename[-1] == '.' and getattr(node, "dot_terminated", False):
+            node = node._try_get_empty_package_part_child()
+            if node is None:
+                raise SequenceNotStoredInPrefixTreeException(error_message)
+        
+        return node, longest_common_prefix == node.word
 
     def get_list_representation(self) -> List[Tuple[int, "JavaProjectPrefixTree.Node"]]:
         destination_array: List[Tuple[int, JavaProjectPrefixTree.Node]] = []

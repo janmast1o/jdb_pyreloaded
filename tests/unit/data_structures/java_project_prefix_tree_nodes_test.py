@@ -243,5 +243,6 @@ class JavaProjectPrefixTreeNodesTest(unittest.TestCase):
         self.assertEqual("", empty_dot_terminated_node.word)
         self.assertTrue(getattr(empty_dot_terminated_node, "dot_terminated"))
 
+
 if __name__ == "__main__":
     unittest.main()
