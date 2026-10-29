@@ -12,7 +12,7 @@ FilePartNode = JavaProjectPrefixTree.FilePartNode
 class JavaProjectPrefixTreeNodesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.parent_node = PackagePartNode("something", None, True)
+        cls.parent_node = PackagePartNode("", None, False)
         return super().setUpClass()
     
     def setUp(self):
@@ -106,6 +106,18 @@ class JavaProjectPrefixTreeNodesTest(unittest.TestCase):
         self.assertTrue(suffix_node.dot_terminated)
         self.assertEqual(prefix_node, suffix_node.parent_node)
         self.assertIs(children_nodes, suffix_node._children_nodes_map)
+
+    def test_get_full_sequence_from_the_root(self):
+        fully_qualified_filename = "org.company.project.threading.lock.NamedLock"
+        node: Node = self.parent_node
+        words = fully_qualified_filename.split(sep=".")
+        for word in words:
+            if word[0] == word[0].lower():
+                node = node.add_new_child(word, NodeType.PACKAGE_PART, dot_terminated=True)
+            else:
+                node = node.add_new_child(word, NodeType.FILE_PART)
+
+        self.assertEqual(fully_qualified_filename, node.get_full_sequence_from_the_root())             
 
 
 if __name__ == "__main__":

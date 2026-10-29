@@ -64,7 +64,8 @@ class JavaProjectPrefixTree:
                 predecessor_words.append(w)
                 predecessor = predecessor.parent_node
 
-            return "".join(predecessor_words.reverse())   
+            predecessor_words.reverse()
+            return "".join(predecessor_words)   
 
         def _move_children_map_from_other_node(self, other_node: "JavaProjectPrefixTree.Node") -> None:
             self._children_nodes_map = other_node._children_nodes_map
@@ -80,8 +81,19 @@ class JavaProjectPrefixTree:
             self._children_nodes_map[self.EMPTY_KEY_MARKER] = ("", JavaProjectPrefixTree.PackagePartNode("", self, True))
             return self._children_nodes_map[self.EMPTY_KEY_MARKER][1]
 
+        def is_an_empty_package_part_dot_terminated_node(self) -> bool:
+            if (self.get_type_enum_value() == JavaProjectPrefixTree.NodeType.PACKAGE_PART and self.word == "" and
+                self.parent_node is not None and self is self.parent_node._children_nodes_map.get(self.EMPTY_KEY_MARKER, ("", None))[1]):
+                return True
+
+            return False    
+
         @abstractmethod
         def maybe_self_dot_terminate(self) -> "JavaProjectPrefixTree.PackagePartNode":
+            pass
+
+        @abstractmethod
+        def try_push_down_dot_termination(self) -> "JavaProjectPrefixTree.PackagePartNode":
             pass
 
         # Handles splitting.
@@ -104,9 +116,10 @@ class JavaProjectPrefixTree:
             return self._children_nodes_map[c][1]
 
         # Returns the prefix node (self) and the suffix node (newly created one).
-        # Prefix word is described with an interval `(0, split_index]`, the suffix node `[split_index+1, len(word))`
+        # Prefix word is described with an interval `[0, split_index]`, the suffix node `[split_index+1, len(word))`
         def split_node(self, split_index: int) -> Tuple["JavaProjectPrefixTree.Node", "JavaProjectPrefixTree.Node"]:
             word_prefix, word_suffix = self.word[:split_index+1], self.word[split_index+1:]
+            print("Prefix and suffix: ", word_prefix, word_suffix)
             self.word = word_prefix
             if self.parent_node is not None:
                 self.parent_node._children_nodes_map[word_prefix[0]] = (word_prefix, self)
@@ -140,6 +153,16 @@ class JavaProjectPrefixTree:
                 return self
             return self.add_empty_package_part_dot_terminated_child()
 
+        @override
+        def try_push_down_dot_termination(self) -> "JavaProjectPrefixTree.PackagePartNode":
+            if not self.dot_terminated:
+                raise Exception("Cannot push down dot-termination as the node is not dot-terminated")
+            self.dot_terminated = False
+            dot_terminated_child = JavaProjectPrefixTree.PackagePartNode("", self, True)
+            dot_terminated_child._move_children_map_from_other_node(self)
+            self._children_nodes_map[self.EMPTY_KEY_MARKER] = ("", dot_terminated_child)
+            return dot_terminated_child
+
         def __str__(self):
             parent_word: Optional[str] = "None"
             if self.parent_node is not None:
@@ -164,6 +187,10 @@ class JavaProjectPrefixTree:
         def maybe_self_dot_terminate(self) -> "JavaProjectPrefixTree.PackagePartNode":
             raise Exception("Cannot self dot-terminate on a file part node")
 
+        @override
+        def try_push_down_dot_termination(self) -> "JavaProjectPrefixTree.PackagePartNode":
+            raise Exception("Cannot push down dot-termination on a file part node")
+
         def __str__(self):
             parent_word: Optional[str] = "None"
             if self.parent_node is not None:
@@ -186,6 +213,7 @@ class JavaProjectPrefixTree:
     #   - fourth: True if the end of the longest common prefix is '.' (dot marking the end of the package name).
     #             This value is only useful if `len(w) - 1 == l_i`, otherwise should be discarded, as anything may be returned (including `None`).
     # Does not mutate the input as a side effect.
+    # Returning 0 and -1 as the second and third values respectively means that the prefix does not exist in the tree.
     @overload
     def find_longest_common_prefix_with_word(self, fully_qualified_word: str) -> Tuple["JavaProjectPrefixTree.Node", int, int, bool]:
         pass
@@ -196,21 +224,21 @@ class JavaProjectPrefixTree:
 
     def find_longest_common_prefix_with_word(self, word: Union[str, List[str]]) -> Tuple["JavaProjectPrefixTree.Node", int, int, bool]:
         words: List[str] = None
-        # full_word_dot_terminated: bool = False
+        full_word_dot_terminated: bool = False
         if isinstance(word, str):
             words = word.split(sep=".")
             if word.endswith("."):
-                # full_word_dot_terminated = True
+                full_word_dot_terminated = True
                 words.pop(-1)
         elif isinstance(word, list):
             words = word
             if words[-1] == "":
-                # full_word_dot_terminated = True
+                full_word_dot_terminated = True
                 # Creating new array instead of modifying, as we do not want to mutate the input.
                 words = words[:-1]
 
         if len(words) == 1 and words[0] == "": # ie. word == ""
-            return self.root, 0, 0, True    
+            return self.root, 0, -1, True    
         elif len(words) > 1 and ("" in words): # at least two consecutive dots or word == "." 
             return SequenceNotStoredInPrefixTreeException("Malformed input")
 
@@ -229,7 +257,7 @@ class JavaProjectPrefixTree:
                 # The longest common prefix of the word and the tree is empty.
                 # It doesn't really matter what we return as the fourth value.
                 if word_index == 0 and letter_index == 0:
-                    return self.root, 0, 0, False
+                    return self.root, 0, -1, False
                 # Since we moved onto the subsequent word, we must have found a full match for the package name.
                 elif letter_index == 0:
                     previous_word_index = word_index-1
@@ -280,7 +308,11 @@ class JavaProjectPrefixTree:
 
         # We should only really reach the point if correctly match the whole word.
         if (words[-1][0] == words[-1][0].lower()): # The last one was package part, not file part.
-            return node, last_word_index, len(words[-1])-1, getattr(node, "dot_terminated", False)
+            node_dot_terminated = getattr(node, "dot_terminated", False)
+            if (not full_word_dot_terminated) and node_dot_terminated and node.is_an_empty_package_part_dot_terminated_node():
+                node = node.parent_node
+                node_dot_terminated = False
+            return node, last_word_index, len(words[-1])-1, node_dot_terminated
 
         # The last one was file part, so we don't care about the last returned value.
         return node, last_word_index, len(words[-1]), None      
@@ -297,26 +329,85 @@ class JavaProjectPrefixTree:
         else:
             raise SequenceNotStoredInPrefixTreeException(f"{fully_qualified_word} not stored in the tree")
 
+    # This implementation is extremely chaotic (but it seems to work), I'm considering just rewriting
+    # the implementation of `find_longest_common_prefix_with_word` and appropriating it
+    # for insertions.
     def add_node(self, fully_qualified_filename: str) -> None:
         words = fully_qualified_filename.split(sep=".")
         last_word_index = len(words)-1
         # LCP - short for 'longest common prefix'
         node, lcp_word_index, lcp_letter_index, package_part_matched = self.find_longest_common_prefix_with_word(words)
-        is_lcp_package_part = (lcp_word_index < last_word_index or words[last_word_index][0] == words[last_word_index][0].lower())
+        print(fully_qualified_filename, lcp_word_index, lcp_letter_index, node)
 
-        if lcp_letter_index < len(words[lcp_word_index])-1:
-            node, _ = node.split_node(lcp_letter_index)
-            node.add_new_child(words[lcp_letter_index+1:])
-        elif is_lcp_package_part and (not package_part_matched): # and by inference: `... and letter_index == len(words[word_index])-1`
-            node = node.add_empty_package_part_dot_terminated_child()
+        # Empty prefix with the tree.
+        if lcp_word_index == 0 and lcp_letter_index == -1:
+            node = self.root
+            for i in range(last_word_index+1):
+                word = words[i]
+                is_file_part = (i == last_word_index) and (word[0] == word[0].upper())
+                if is_file_part:
+                    node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.FILE_PART)
+                else:
+                    node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
+            return
+
+        last_lcp_word = words[lcp_word_index]
+        last_lcp_word_suffix = last_lcp_word[lcp_letter_index+1:]
+        if package_part_matched:
+            # Sanity check assertion
+            if lcp_letter_index != len(last_lcp_word)-1:
+                raise Exception("Possible implementation error in JavaProjectPrefixTree::find_longest_common_prefix_with_tree")
+            for i in range(lcp_word_index+1, last_word_index+1):
+                word = words[i]
+                is_file_part = i == last_word_index and (word[0] == word[0].upper())
+                if is_file_part:
+                    node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.FILE_PART)
+                else:
+                    node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
+            return            
+
+        found_prefix = ".".join(words[:lcp_word_index]) + "." + last_lcp_word[:lcp_letter_index+1]
+        found_prefix = found_prefix.lstrip(".")
+        node_full_sequence = node.get_full_sequence_from_the_root()
+        is_last_lcp_word_file_part = (lcp_word_index == last_word_index) and (last_lcp_word[0] == last_lcp_word[0].upper())
+
+        if found_prefix == node_full_sequence:
+            if lcp_letter_index < len(last_lcp_word)-1:
+                if not is_last_lcp_word_file_part and getattr(node, "dot_terminated", False):
+                    node.try_push_down_dot_termination()
+                if is_last_lcp_word_file_part:
+                    node = node.add_new_child(last_lcp_word_suffix, JavaProjectPrefixTree.NodeType.FILE_PART)
+                else:
+                    node = node.add_new_child(last_lcp_word_suffix, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
+            elif not is_last_lcp_word_file_part: # and by inference `... and lcp_letter_index == len(last_lcp_word)-1`
+                # We did not get package part matched, so we need to manually dot-terminate the node.
+                node = node.maybe_self_dot_terminate()
+        else:
+            length_difference = len(node_full_sequence) - len(found_prefix)
+            if length_difference == 1 and node_full_sequence[-1] == ".": # and by inference `... and node.dot_terminated`
+                node.try_push_down_dot_termination()    
+            else:
+                node_full_sequence = node_full_sequence.rstrip(".")
+                length_difference = len(node_full_sequence) - len(found_prefix)
+                print("H: ", node_full_sequence, found_prefix, length_difference)
+                prefix_node, _ = node.split_node(len(node.word) - length_difference - 1)
+                node = prefix_node
+                if not is_last_lcp_word_file_part and lcp_letter_index == len(last_lcp_word)-1:
+                    node = node.add_empty_package_part_dot_terminated_child()
+            
+            if lcp_letter_index < len(last_lcp_word)-1:
+                if is_last_lcp_word_file_part:
+                    node = prefix_node.add_new_child(last_lcp_word_suffix, JavaProjectPrefixTree.NodeType.FILE_PART)
+                else:
+                    node = prefix_node.add_new_child(last_lcp_word_suffix, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
 
         for i in range(lcp_word_index+1, last_word_index+1):
             word = words[i]
-            is_current_package_part_word = i < last_word_index and word[0] == word[0].lower()
-            if is_current_package_part_word:
-                node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
+            is_file_part = i == last_word_index and (word[0] == word[0].upper())
+            if is_file_part:
+                node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.FILE_PART)
             else:
-                node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.FILE_PART)     
+                node = node.add_new_child(word, JavaProjectPrefixTree.NodeType.PACKAGE_PART, dot_terminated=True)
 
     def get_list_representation(self) -> List[Tuple[int, "JavaProjectPrefixTree.Node"]]:
         destination_array: List[Tuple[int, JavaProjectPrefixTree.Node]] = []

@@ -25,8 +25,10 @@ class JavaProjectPrefixTreeTest(unittest.TestCase):
         "threading.async.lw.Future", "threading.async.lw.FutureFactory",
         "threading.async.ll.NamedThreadFactory",
         "threading.async.ll.NamedThread", 
+        "logalg.BinSearch",
         "Main", "log.ThreadSafeLogger", "log.Logger", "log.LoggerFactory",
-        "logalg.BinSearch"
+        # Also includes modules without files
+        "auth", "threading.lock"
     ]
 
     EXPECTED_TREE_REPRESENTATION: List[Tuple[int, str]] = [
@@ -129,9 +131,12 @@ class JavaProjectPrefixTreeTest(unittest.TestCase):
 
             failed_assertion_message = f"Failed insertion for: {(new_word, new_node_parent_word, new_node_depth)}"
             # Only should be executed when `new_node_depth == current_depth+1`
-            self.assertEqual(node.word, new_node_parent_word if current_depth > 0 else "", failed_assertion_message)
+            self.assertEqual(node.word, new_node_parent_word if (current_depth > 0 and new_node_parent_word != "<empty>") else "", failed_assertion_message)
             if new_node_type == NodeType.PACKAGE_PART:
-                node = node.add_new_child(new_word, NodeType.PACKAGE_PART, dot_terminated=new_node_dot_terminated)
+                if new_word == "<empty>":
+                    node = node.add_empty_package_part_dot_terminated_child()
+                else:
+                    node = node.add_new_child(new_word, NodeType.PACKAGE_PART, dot_terminated=new_node_dot_terminated)
             else:
                 node = node.add_new_child(new_word, NodeType.FILE_PART)
             current_depth += 1
@@ -162,7 +167,13 @@ class JavaProjectPrefixTreeTest(unittest.TestCase):
         node, word_index, letter_index, _ = self.project_tree.find_longest_common_prefix_with_word("")
         self.assertIs(node, self.project_tree.root)
         self.assertEqual(0, word_index)
-        self.assertEqual(0, letter_index)
+        self.assertEqual(-1, letter_index)
+
+        node, word_index, letter_index, _ = self.project_tree.find_longest_common_prefix_with_word("zebra")
+        self.assertIs(node, self.project_tree.root)
+        self.assertEqual(0, word_index)
+        self.assertEqual(-1, letter_index)
+
 
         node, word_index, letter_index, package_part_matched = self.project_tree.find_longest_common_prefix_with_word("api")
         internal_run_assertions(node, word_index, letter_index, package_part_matched, "pi", 0, 2, True)
@@ -194,14 +205,29 @@ class JavaProjectPrefixTreeTest(unittest.TestCase):
         node, word_index, letter_index, package_part_matched = self.project_tree.find_longest_common_prefix_with_word("log")
         internal_run_assertions(node, word_index, letter_index, package_part_matched, "log", 0, 2, False)
 
-        # TODO: Fix this test case.
         node, word_index, letter_index, package_part_matched = self.project_tree.find_longest_common_prefix_with_word("log.")
-        internal_run_assertions(node, word_index, letter_index, package_part_matched, "<empty>", 0, 2, True)
-    
-    # def test_build_project_tree(self):
-    #     full_tree_filenames = JavaProjectPrefixTreeTest.FULL_TREE_FILENAMES
-    #     for fully_qualified_filename in full_tree_filenames
+        internal_run_assertions(node, word_index, letter_index, package_part_matched, "", 0, 2, True)
 
+        node, word_index, letter_index, package_part_matched = self.project_tree.find_longest_common_prefix_with_word("log.Formatter")
+        internal_run_assertions(node, word_index, letter_index, package_part_matched, "", 0, 2, True)
+    
+    def test_build_project_tree(self):
+        full_tree_filenames = JavaProjectPrefixTreeTest.FULL_TREE_FILENAMES
+        for fully_qualified_filename in full_tree_filenames:
+            self.project_tree.add_node(fully_qualified_filename)
+
+        list_representation = self.project_tree.get_list_representation()
+        for row in list_representation:
+            print(row) 
+        expected_list_representation = JavaProjectPrefixTreeTest.EXPECTED_TREE_REPRESENTATION
+        self.assertEqual(len(list_representation), len(expected_list_representation))
+        n = len(list_representation)
+
+        for i in range(n):
+            row = (list_representation[i][0], str(list_representation[i][1]))
+            expected_row = expected_list_representation[i]
+            failed_assertion_message = f"Failed assertion for: {row}"
+            self.assertEqual(row, expected_row, failed_assertion_message)
 
 if __name__ == "__main__":
     unittest.main()            
