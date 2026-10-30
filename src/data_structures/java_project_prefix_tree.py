@@ -119,7 +119,6 @@ class JavaProjectPrefixTree:
         # Prefix word is described with an interval `[0, split_index]`, the suffix node `[split_index+1, len(word))`
         def split_node(self, split_index: int) -> Tuple["JavaProjectPrefixTree.Node", "JavaProjectPrefixTree.Node"]:
             word_prefix, word_suffix = self.word[:split_index+1], self.word[split_index+1:]
-            print("Prefix and suffix: ", word_prefix, word_suffix)
             self.word = word_prefix
             if self.parent_node is not None:
                 self.parent_node._children_nodes_map[word_prefix[0]] = (word_prefix, self)
@@ -322,9 +321,6 @@ class JavaProjectPrefixTree:
         node, word_index, letter_index, _ = self.find_longest_common_prefix_with_word(words)
 
         if word_index == len(words)-1 and letter_index == len(words[-1])-1:
-            # if fully_qualified_word.endswith("."):
-            #     if getattr(node, "dot_terminated", False):
-
             return node
         else:
             raise SequenceNotStoredInPrefixTreeException(f"{fully_qualified_word} not stored in the tree")
@@ -337,7 +333,6 @@ class JavaProjectPrefixTree:
         last_word_index = len(words)-1
         # LCP - short for 'longest common prefix'
         node, lcp_word_index, lcp_letter_index, package_part_matched = self.find_longest_common_prefix_with_word(words)
-        print(fully_qualified_filename, lcp_word_index, lcp_letter_index, node)
 
         # Empty prefix with the tree.
         if lcp_word_index == 0 and lcp_letter_index == -1:
@@ -389,7 +384,6 @@ class JavaProjectPrefixTree:
             else:
                 node_full_sequence = node_full_sequence.rstrip(".")
                 length_difference = len(node_full_sequence) - len(found_prefix)
-                print("H: ", node_full_sequence, found_prefix, length_difference)
                 prefix_node, _ = node.split_node(len(node.word) - length_difference - 1)
                 node = prefix_node
                 if not is_last_lcp_word_file_part and lcp_letter_index == len(last_lcp_word)-1:

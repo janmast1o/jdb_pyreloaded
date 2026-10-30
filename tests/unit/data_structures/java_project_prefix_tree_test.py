@@ -217,8 +217,6 @@ class JavaProjectPrefixTreeTest(unittest.TestCase):
             self.project_tree.add_node(fully_qualified_filename)
 
         list_representation = self.project_tree.get_list_representation()
-        for row in list_representation:
-            print(row) 
         expected_list_representation = JavaProjectPrefixTreeTest.EXPECTED_TREE_REPRESENTATION
         self.assertEqual(len(list_representation), len(expected_list_representation))
         n = len(list_representation)
