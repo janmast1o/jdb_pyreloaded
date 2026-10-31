@@ -107,8 +107,8 @@ class BuildingPrefixTreeForLocalJavaProjectTest(unittest.TestCase):
             optional_pyjdb_target_list=[""]
         )
         list_representation = project_tree.get_list_representation()
-        for row in list_representation:
-            print(row)
+        # for row in list_representation:
+        #     print(row)
         expected_list_representation = BuildingPrefixTreeForLocalJavaProjectTest.EXPECTED_TREE_REPRESENTATION
         self.assertEqual(len(expected_list_representation), len(list_representation))
         n = len(list_representation)

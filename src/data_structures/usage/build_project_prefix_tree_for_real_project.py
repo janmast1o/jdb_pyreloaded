@@ -40,16 +40,19 @@ def maybe_translate_env_variables(file_path: str) -> str:
     return "".join(file_path_elements)
 
 
-def explore_local_directory_and_add_files_to_project_tree(project_tree: JavaProjectPrefixTree, local_dir_path: str, non_module_prefix: str) -> None:
+def explore_local_directory_and_add_files_to_project_tree(project_tree: JavaProjectPrefixTree, local_dir_path: str, non_module_prefix_length: int) -> None:
+    # print(f"Exploring directory: {local_dir_path}...")
     dir_contents = os.listdir(local_dir_path)
     for entry in dir_contents:
         if os.path.isdir(os.path.join(local_dir_path, entry)):
-            explore_local_directory_and_add_files_to_project_tree(project_tree, os.path.join(local_dir_path, entry), non_module_prefix)
+            explore_local_directory_and_add_files_to_project_tree(project_tree, os.path.join(local_dir_path, entry), non_module_prefix_length)
         elif entry.endswith(".java"):
-            print(os.path.join(local_dir_path, entry), non_module_prefix)
-            fully_qualified_java_filename = os.path.join(local_dir_path, entry).lstrip(non_module_prefix).rstrip(".java").replace(os.path.sep, ".")
-            print(fully_qualified_java_filename)
+            # print(os.path.join(local_dir_path, entry), non_module_prefix)
+            fully_qualified_java_filename = os.path.join(local_dir_path, entry).rstrip(".java").replace(os.path.sep, ".")
+            fully_qualified_java_filename = fully_qualified_java_filename[non_module_prefix_length:]
+            # print(fully_qualified_java_filename, os.path.join(local_dir_path, entry))
             project_tree.add_node(fully_qualified_java_filename)
+    # print(f"Finished exploring directory: {local_dir_path}")
 
 
 # PYJDB target list has to be either supplied or file `target.pyjdb` has to exist in the
@@ -75,7 +78,10 @@ def build_project_prefix_tree_for_local_java_project(project_path: str, optional
     project_tree = JavaProjectPrefixTree()
     for target_dir in pyjdb_target_list:
         absolute_target_dir = os.path.join(project_path, target_dir)
-        explore_local_directory_and_add_files_to_project_tree(project_tree, absolute_target_dir, absolute_target_dir)
+        absolute_target_dir_length = len(absolute_target_dir)
+        if not absolute_target_dir.endswith(os.path.sep):
+            absolute_target_dir_length += 1
+        explore_local_directory_and_add_files_to_project_tree(project_tree, absolute_target_dir, absolute_target_dir_length)
 
     return project_tree    
 
