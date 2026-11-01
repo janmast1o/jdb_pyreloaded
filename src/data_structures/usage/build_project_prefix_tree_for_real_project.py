@@ -47,12 +47,9 @@ def explore_local_directory_and_add_files_to_project_tree(project_tree: JavaProj
         if os.path.isdir(os.path.join(local_dir_path, entry)):
             explore_local_directory_and_add_files_to_project_tree(project_tree, os.path.join(local_dir_path, entry), non_module_prefix_length)
         elif entry.endswith(".java"):
-            # print(os.path.join(local_dir_path, entry), non_module_prefix)
             fully_qualified_java_filename = os.path.join(local_dir_path, entry).rstrip(".java").replace(os.path.sep, ".")
             fully_qualified_java_filename = fully_qualified_java_filename[non_module_prefix_length:]
-            # print(fully_qualified_java_filename, os.path.join(local_dir_path, entry))
             project_tree.add_node(fully_qualified_java_filename)
-    # print(f"Finished exploring directory: {local_dir_path}")
 
 
 # PYJDB target list has to be either supplied or file `target.pyjdb` has to exist in the

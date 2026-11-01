@@ -29,7 +29,7 @@ class TimespanRecorder:
         return self.end - self.start    
 
 
-def ignore_performace_test(f: Callable):
+def ignore_performance_test(f: Callable):
     def inner_print_ignore_message(*args, **kwargs) -> PerformanceTestOutcomeType:
         print(f"Test case {f.__name__}")
         return PerformanceTestOutcomeType.SKIPPED
@@ -93,6 +93,8 @@ class PerformanceTestFramework(AbstractClass):
                         break
                     cumulative_sleep_time += time_quant
                     await asyncio.sleep(time_quant)
+                    if cumulative_sleep_time > self._test_timeout_s:
+                        break
                 
                 if not async_task.done():
                     async_task.cancel()

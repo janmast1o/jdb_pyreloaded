@@ -20,7 +20,6 @@ class JDBWrapperCompleter(Completer):
         # when `document.get_word_before_cursor()` is called, therefore we have to 
         # use this weird workaround.
         word_before_cursor = document.text_before_cursor.split()[-1]
-        # print(f"In get completions: {document.text_before_cursor}; {document.text_after_cursor}")
 
         if len(text_after_cursor) == 0 or text_after_cursor[0].isspace():
             node_containing_word: Optional[JavaProjectPrefixTree.Node] = None
@@ -30,15 +29,11 @@ class JDBWrapperCompleter(Completer):
                 node_containing_word = None
 
             if node_containing_word is None:
-                # print("AA!")
                 yield Completion("", start_position=0)
                 return
 
             node_full_sequence_from_root = node_containing_word.get_full_sequence_from_the_root(include_possible_trailing_dot=True)
-            # print(f"NFSFR: {node_full_sequence_from_root}")
-            # print(f"word before cursor: {word_before_cursor}")
             if len(node_full_sequence_from_root) > len(word_before_cursor):
-                # print("BB!")
                 yield Completion(node_full_sequence_from_root, start_position=-len(word_before_cursor))
             else:
                 node_children_map = node_containing_word.get_children_nodes_map()

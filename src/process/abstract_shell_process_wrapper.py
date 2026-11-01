@@ -7,7 +7,6 @@ from typing import Union, Optional, Dict, Any
 from typing_extensions import override
 from prompt_toolkit import PromptSession
 from prompt_toolkit.input import Input
-from prompt_toolkit.completion import Completer
 
 from src.io.abstract_wrapping_process_input_interceptor import AbstractWrappingProcessInputInterceptor
 from src.io.abstract_wrapped_process_output_interceptor import AbstractWrappedProcessOutputInterceptor
@@ -46,7 +45,6 @@ class AbstractShellProcessWrapper(InternalUseInterceptorsAndCompleterCreator):
         self._keep_running = False
         self._optional_input_interceptor: AbstractWrappingProcessInputInterceptor = self._create_input_interceptor()
 
-        # self._keep_running: BooleanWrapper = BooleanWrapper.create_empty()
         if start_immediately:
             self._start()
 
@@ -60,13 +58,6 @@ class AbstractShellProcessWrapper(InternalUseInterceptorsAndCompleterCreator):
     @abstractmethod
     def _get_introduction_message(self) -> str:
         pass
-
-    # # Completer creation is tied to how the wrapped process works,
-    # # hence it's marked as abstract and has to be implemented in 
-    # # inheriting class
-    # @override
-    # def _create_completer(self) -> Completer:
-    #     pass
 
     @abstractmethod
     def _get_exit_keyword_for_wrapped_process(self) -> str:

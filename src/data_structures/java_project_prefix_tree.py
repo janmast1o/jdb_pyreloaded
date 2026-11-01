@@ -22,8 +22,6 @@ def add_subtree_rooted_at_node_to_array_representation(node: "JavaProjectPrefixT
         add_subtree_rooted_at_node_to_array_representation(child_node, destination_array, depth+1)
 
 
-# TODO: Add node/word removal support. 
-# TODO: Decide if `Node` classes should be moved outside the class for clarity
 class JavaProjectPrefixTree:
 
     class NodeType(Enum):
@@ -324,7 +322,6 @@ class JavaProjectPrefixTree:
     def find_node_containing_prefix(self, fully_qualified_word: str) -> "JavaProjectPrefixTree.Node":
         words = fully_qualified_word.split(sep=".")
         node, word_index, letter_index, _ = self.find_longest_common_prefix_with_word(words)
-        # print(f"In find node containing prefix: {words}; {(word_index, letter_index)}")
 
         if word_index == len(words)-1 and letter_index == len(words[-1])-1:
             return node

@@ -1,9 +1,6 @@
 import argparse
 
-from src.io.terminal_input_consumer import TerminalInputConsumer
 from src.process.abstract_shell_process_wrapper import WrappingSessionOptions
-from src.utils.custom_exceptions import ShellProcessWrapperInterruptException
-from src.utils.signal_utils import RaiseExceptionAfterReceivingSignal
 from tests.shared_across_test_types.process.concurrent_printers_with_live_message_changing_wrapper import ConcurrentPrintersWithLiveMessageChangingWrapper
 
 

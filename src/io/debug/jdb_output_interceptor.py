@@ -25,6 +25,9 @@ from src.process.debug.breakpoints import BaseBreakpoint, ConditionalBreakpoint,
 
 # TODO: Optimize `line.strip(">").strip()` - not very high priority since
 # this should not be a costly operation overall.
+# NOTE: Returning to this TODO shortly before making the project public: I will probably not fix it,
+# since the execution is satisfactory anyway. Still, this doesn't look particularly nice so I might still
+# fix it down the line.
 class JDBOutputInterceptor(AbstractWrappedDebuggerOutputInterceptor):
     BREAKPOINT_MESSAGE_KINDS_TO_THROTTLE = (
         BreakpointRelatedMessageKind.BREAKPOINTS_LISTED_HEADER |
