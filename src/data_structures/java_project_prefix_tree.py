@@ -54,8 +54,13 @@ class JavaProjectPrefixTree:
         def get_type_enum_value(self) -> "JavaProjectPrefixTree.NodeType":
             pass
 
-        def get_full_sequence_from_the_root(self) -> str:
+        def get_children_nodes_map(self) ->  Dict[str, Tuple[str, "JavaProjectPrefixTree.Node"]]:
+            return self._children_nodes_map
+
+        def get_full_sequence_from_the_root(self, include_possible_trailing_dot: bool = False) -> str:
             predecessor_words: List[str] = [self.word]
+            if include_possible_trailing_dot and getattr(self, "dot_terminated", False):
+                predecessor_words[0] = predecessor_words[0] + "."
             predecessor = self.parent_node
             while predecessor is not None:
                 w = predecessor.word
@@ -319,6 +324,7 @@ class JavaProjectPrefixTree:
     def find_node_containing_prefix(self, fully_qualified_word: str) -> "JavaProjectPrefixTree.Node":
         words = fully_qualified_word.split(sep=".")
         node, word_index, letter_index, _ = self.find_longest_common_prefix_with_word(words)
+        # print(f"In find node containing prefix: {words}; {(word_index, letter_index)}")
 
         if word_index == len(words)-1 and letter_index == len(words[-1])-1:
             return node
