@@ -12,7 +12,7 @@ A wrapper around jdb implemented in python, supporting autocompletion and condit
 
 ### Pre-requisites:
 
-- ensure that your terminal has `onlcr` on (to check that you ran this command `stty -a | tr ' ' '\n' | grep onlcr` and verify that the output is `onlcr` and not `-onlcr`)
+- ensure that your terminal has `onlcr` on (to check that you can run this command `stty -a | tr ' ' '\n' | grep onlcr` and verify that the output is `onlcr` and not `-onlcr`)
 
 ### Running the program:
 
@@ -22,7 +22,7 @@ To run the JDB Pyreloaded run this command in the terminal:
 python -m src.run_jdb_debugger_wrapper --jvm_address=<ip_address>:<port>
 ```
 
-For example if one wants to debug a local java process which exposes debug port 5005: 
+For example if one wants to debug a local Java process which exposes debug port 5005: 
 
 ```bash
 python -m src.run_jdb_debugger_wrapper --jvm_address=127.0.0.1:5005
@@ -91,5 +91,41 @@ For example if one is debugging a local Cassandra process, which exposes 5005 de
 python -m src.run_jdb_debugger_wrapper --jvm_address=127.0.0.1:5005 --local_project_path=/home/ubuntu/OpenSourceProjects/cassandra
 ```
 
+For autocomplete to work correctly a JDB Pyreloaded target list has to be specified for the project. Target directories in that list indicate where Java packages storing code are.
+For example, for Cassandra (please refer to the [Cassandra github repository](https://github.com/apache/cassandra)) the target list would be as follows:
 
+```
+src/java
+test/unit
+```
 
+One can notice that these directories store Java packages.
+
+There are two ways of specifying JDB Pyreloaded target list. Firstly, it can be passed a script argument: 
+
+```bash
+python -m src.run_jdb_debugger_wrapper --jvm_address=<ip_address>:<port> --local_project_path=<absolute_filepath_to_the_project_root> --pyjdb_target_list=<list_of_directories_storing_java_packages>
+```
+
+To stick with the Cassandra example, the command would be as follows: 
+
+```bash
+python -m src.run_jdb_debugger_wrapper --jvm_address=127.0.0.1:5005 --local_project_path=/home/ubuntu/OpenSourceProjects/cassandra --pyjdb_target_list=src/java,test/unit
+```
+
+The other way of specifying the target list is to create a `target.pyjdb` file in the debugged project and paste the contents target list there.
+In the example above one would create a file `/home/ubuntu/OpenSourceProjects/cassandra/target.pyjdb` and then paste following contents:
+
+```
+src/java
+test/unit
+```
+
+After doing that JDB Pyreloaded with autocompletion can be run with such a command (`target.pyjdb` will be found in the project path and read it automatically): 
+
+```bash
+python -m src.run_jdb_debugger_wrapper --jvm_address=127.0.0.1:5005 --local_project_path=/home/ubuntu/OpenSourceProjects/cassandra
+```
+
+Do note that autcompletion for fully qualified class names is currently only supported for local processes. 
+Should there be demand for it, the prospect of adding autocompletion support for remote processes shall be explored.
