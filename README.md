@@ -1,6 +1,6 @@
 # JDB Pyreloaded:
 
-A wrapper around jdb implemented in python, supporting autocompletion and conditional breakpoints among others.
+A wrapper around jdb implemented in python, supporting autocompletion and conditional breakpoints, among other features.
 
 ## Requirements:
 
@@ -28,6 +28,12 @@ For example if one wants to debug a local Java process which exposes debug port 
 python -m src.run_jdb_debugger_wrapper --jvm_address=127.0.0.1:5005
 ```
 
+To find out more about configurable flags of this program call, run: 
+
+```bash
+python -m src.run_jdb_debugger_wrapper --help
+```
+
 ## Why use this project:
 
 The goal of this project was to develop a tool which would be more convenient and efficient to use than JDB that comes with Java by default.
@@ -36,8 +42,9 @@ This section will describe what has been done to improve on the experience of us
 
 ### Arrow keys support:
 
-JDB does not support using left/right arrow keys to move cursor when writing a command or up/down arrow keys to inspect previously inputted commands (at least for older Java versions).
-Instead of the above mentioned actions being performed one of `^[[A`, `^[[B`, `^[[C`, `^[[D` is appended to the end of the command, which admittedly is not particularly useful most of the time.
+Most terminal apps support using left/right arrow keys to move the cursor when writing the command and up/down arrow keys to inspect previously executed commands.
+This is not the case for JDB (at least for older Java releases).
+Instead of the above mentioned actions being performed one of `^[[A`, `^[[B`, `^[[C`, `^[[D` is appended to the end of the command.
 
 This issue has been solved by building the interactable layer of the project on `prompt_toolkit` which supplies desired functionality out of the box.
 
@@ -45,18 +52,18 @@ This issue has been solved by building the interactable layer of the project on 
 
 When debugging we often only care about the state of the process if some specific conditions are met. Regular breakpoints do not accommodate such scenarios particularly well.
 
-Suppose you want to debug such a piece of code:
+Suppose you want to debug a following piece of code:
 
 ```java
-100   public void processUpdateRequest(InsertionRequest request) {
+100   public void processUpdateRequest(UpdateRequest request) {
 101       registerNewActivelyExecutedRequest(request, RequestType.UPDATE);
 102       <update request logic>
 103   }
 ```
 
 The system starts to behave incorrectly after a certain threshold (for example 25) of update requests being concurrently executed is reached. 
-Normally one would have to add a breakpoint in `processUpdateRequests` and instantly resume execution with `cont` upon hitting that breakpoint, until
-they finally hit it when the condition (at least 25 update requests being executed concurrently) happens to be met.
+Normally you would have to add a breakpoint in `processUpdateRequest` and instantly resume execution with `cont` upon hitting that breakpoint, until
+you finally hit it when the condition (at least 25 update requests being executed concurrently) happens to be met.
 
 JDB Pyreloaded enables the user to achieve this in a more convenient manner by setting a conditional breakpoint:
 
@@ -99,7 +106,7 @@ src/java
 test/unit
 ```
 
-One can notice that these directories store Java packages.
+One can notice that these directories directly store Java packages.
 
 There are two ways of specifying JDB Pyreloaded target list. Firstly, it can be passed a script argument: 
 
@@ -127,5 +134,5 @@ After doing that JDB Pyreloaded with autocompletion can be run with such a comma
 python -m src.run_jdb_debugger_wrapper --jvm_address=127.0.0.1:5005 --local_project_path=/home/ubuntu/OpenSourceProjects/cassandra
 ```
 
-Do note that autcompletion for fully qualified class names is currently only supported for local processes. 
+Do note that autocompletion for fully qualified class names is currently only supported for local processes. 
 Should there be demand for it, the prospect of adding autocompletion support for remote processes shall be explored.
