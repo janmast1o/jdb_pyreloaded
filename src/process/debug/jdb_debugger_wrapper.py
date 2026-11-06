@@ -3,9 +3,10 @@ import os
 import sys
 
 from prompt_toolkit.completion import Completer, Completion
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from typing_extensions import override
 
+from src.data_structures.usage.jdb_wrapper_completer import JDBWrapperCompleter
 from src.io.abstract_wrapping_process_input_interceptor import AbstractWrappingProcessInputInterceptor
 from src.io.abstract_wrapped_process_output_interceptor import AbstractWrappedProcessOutputInterceptor
 from src.io.debug.jdb_output_interceptor import JDBOutputInterceptor
@@ -18,15 +19,10 @@ from src.process.debug.debugger_wrapper import DebuggerWrapper
 from src.utils.util_objects import BaseString, Regex
 
 
-# TODO: Implement `JDBCompleter`
-class JDBCompleter(Completer):
-    @override
-    def get_completions(self, document, unimportant_complete_event):
-        yield Completion("", start_position=0)
-
-
 class JDBDebuggerWrapper(DebuggerWrapper, MultiThreadedShellProcessWrapper):
     def __init__(self, jvm_process_ip_address: str, jvm_process_port: int,
+                 optional_local_project_path: Optional[str],
+                 optional_pyjdb_target_list: Optional[List[str]],
                  wrapping_session_options: WrappingSessionOptions,
                  ignore_wrapped_process_input_line: bool = False,
                  run_in_main_thread: bool = True,
@@ -39,6 +35,8 @@ class JDBDebuggerWrapper(DebuggerWrapper, MultiThreadedShellProcessWrapper):
                  min_time_between_prompt_displays_ms: int = 200):
         self._jvm_process_ip_address: str = jvm_process_ip_address
         self._jvm_process_port: int = jvm_process_port
+        self._optional_local_project_path: Optional[str] = optional_local_project_path
+        self._optional_pyjdb_target_list: Optional[List[str]] = optional_pyjdb_target_list
         # Validating ip address
         try:
             ipaddress.ip_address(self._jvm_process_ip_address)
@@ -57,7 +55,17 @@ class JDBDebuggerWrapper(DebuggerWrapper, MultiThreadedShellProcessWrapper):
 
     @override
     def _create_completer(self) -> Completer:
-        return JDBCompleter()
+        # If we are not debugging a local project, project prefix tree will not be constructed
+        if self._optional_local_project_path is None or (self._jvm_process_ip_address not in ["localhost", "127.0.0.1"]):
+            def yield_one_empty_completion(): yield Completion("", start_position=0)
+            EmptyCompletionCompleter = type(
+                "EmptyCompletionCompleter", (Completer,),
+                {"get_completions": lambda self, document, complete_event: yield_one_empty_completion()}
+            )
+
+            return EmptyCompletionCompleter()
+
+        return JDBWrapperCompleter(self._optional_local_project_path, self._optional_pyjdb_target_list)
 
     @override
     def _create_input_interceptor(self) -> Optional[AbstractWrappingProcessInputInterceptor]:

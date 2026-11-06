@@ -21,11 +21,6 @@ class SingleThreadedWrappedProcessStdoutSink(AbstractWrappedProcessStdoutSink):
 
     @override
     def write(self, s: str) -> None:
-        # This check is based on an assumption formed after empirically observing
-        # that whenever this `write` method is called for input passed to wrapped process
-        # it is passed by itself. This is not a guarantee and could be a good place
-        # to start debugging if some problems regarding console output redirection
-        # from wrapped process are encountered
         if s.strip() == self.line_to_ignore_next_occurrence_of:
             self.line_to_ignore_next_occurrence_of = None
             return
